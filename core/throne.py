@@ -118,7 +118,8 @@ class ThroneMonitor:
         apps = []
         try:
             uri = f"file:{self.stats_db_path}?mode=ro"
-            with sqlite3.connect(uri, uri=True, timeout=1.0) as conn:
+            conn = sqlite3.connect(uri, uri=True, timeout=1.0)
+            try:
                 c = conn.cursor()
                 query = """
                     SELECT process_name, SUM(up) as total_up, SUM(down) as total_down
@@ -137,6 +138,8 @@ class ThroneMonitor:
                         "down_bytes": down_bytes,
                         "total_bytes": total
                     })
+            finally:
+                conn.close()
         except Exception:
             pass
         return apps

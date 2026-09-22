@@ -215,7 +215,8 @@ class VpnDetector:
         apps = []
         try:
             uri = f"file:{self.throne_stats_db}?mode=ro"
-            with sqlite3.connect(uri, uri=True, timeout=1.0) as conn:
+            conn = sqlite3.connect(uri, uri=True, timeout=1.0)
+            try:
                 c = conn.cursor()
                 query = """
                     SELECT process_name, SUM(up) as total_up, SUM(down) as total_down
@@ -234,6 +235,8 @@ class VpnDetector:
                         "down_bytes": down_bytes,
                         "total_bytes": total
                     })
+            finally:
+                conn.close()
         except Exception:
             pass
         return apps

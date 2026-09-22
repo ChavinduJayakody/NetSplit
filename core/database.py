@@ -46,35 +46,38 @@ class StatsDatabase:
         return conn
 
     def _init_db(self):
-        with self._get_connection() as conn:
-            c = conn.cursor()
-            c.execute("""
-                CREATE TABLE IF NOT EXISTS daily_stats (
-                    date TEXT PRIMARY KEY,
-                    normal_rx INTEGER DEFAULT 0,
-                    normal_tx INTEGER DEFAULT 0,
-                    vpn_rx INTEGER DEFAULT 0,
-                    vpn_tx INTEGER DEFAULT 0,
-                    total_rx INTEGER DEFAULT 0,
-                    total_tx INTEGER DEFAULT 0
-                )
-            """)
-            c.execute("""
-                CREATE TABLE IF NOT EXISTS hourly_stats (
-                    hour_bucket TEXT PRIMARY KEY,
-                    normal_rx INTEGER DEFAULT 0,
-                    normal_tx INTEGER DEFAULT 0,
-                    vpn_rx INTEGER DEFAULT 0,
-                    vpn_tx INTEGER DEFAULT 0
-                )
-            """)
-            c.execute("""
-                CREATE TABLE IF NOT EXISTS app_settings (
-                    key TEXT PRIMARY KEY,
-                    value TEXT
-                )
-            """)
-            conn.commit()
+        conn = self._get_connection()
+        try:
+            with conn:
+                c = conn.cursor()
+                c.execute("""
+                    CREATE TABLE IF NOT EXISTS daily_stats (
+                        date TEXT PRIMARY KEY,
+                        normal_rx INTEGER DEFAULT 0,
+                        normal_tx INTEGER DEFAULT 0,
+                        vpn_rx INTEGER DEFAULT 0,
+                        vpn_tx INTEGER DEFAULT 0,
+                        total_rx INTEGER DEFAULT 0,
+                        total_tx INTEGER DEFAULT 0
+                    )
+                """)
+                c.execute("""
+                    CREATE TABLE IF NOT EXISTS hourly_stats (
+                        hour_bucket TEXT PRIMARY KEY,
+                        normal_rx INTEGER DEFAULT 0,
+                        normal_tx INTEGER DEFAULT 0,
+                        vpn_rx INTEGER DEFAULT 0,
+                        vpn_tx INTEGER DEFAULT 0
+                    )
+                """)
+                c.execute("""
+                    CREATE TABLE IF NOT EXISTS app_settings (
+                        key TEXT PRIMARY KEY,
+                        value TEXT
+                    )
+                """)
+        finally:
+            conn.close()
 
     def get_setting(self, key: str, default: str = None) -> str:
         conn = self._get_connection()
