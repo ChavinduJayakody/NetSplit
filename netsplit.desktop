@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=NetSplit
+Comment=Real-time Wi-Fi & Throne VPN Traffic Monitor
+Exec=/home/cypher/Projects/NetworkMonitor/run.sh
+Icon=netsplit
+Terminal=false
+Type=Application
+Categories=Network;Monitor;Utility;System;
+Keywords=network;speed;vpn;throne;wifi;traffic;monitor;
+StartupNotify=true
+StartupWMClass=io.github.networkmonitor.app
