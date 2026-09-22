@@ -96,6 +96,16 @@ class TestThroneIntegration(unittest.TestCase):
         self.assertIn("tun_active", summary)
         self.assertIn("status_text", summary)
 
+    def test_vpn_detector(self):
+        from core.vpn_detector import VpnDetector
+        vd = VpnDetector()
+        summary = vd.get_status_summary()
+        self.assertIn("is_running", summary)
+        self.assertIn("tun_active", summary)
+        self.assertIn("client_name", summary)
+        self.assertIn("profile_type", summary)
+        self.assertIn("running_tools", summary)
+
 
 class TestCollector(unittest.TestCase):
     def test_collector_snapshot(self):

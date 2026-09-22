@@ -174,7 +174,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Header bar
         header = Adw.HeaderBar()
-        title_widget = Adw.WindowTitle(title="NetSplit", subtitle="Wi-Fi and Throne VPN Split")
+        title_widget = Adw.WindowTitle(title="NetSplit", subtitle="Direct Wi-Fi and VPN / Proxy Split")
         header.set_title_widget(title_widget)
 
         # Status badge in header
@@ -207,9 +207,9 @@ class MainWindow(Adw.ApplicationWindow):
         self.wifi_page = self._build_wifi_page()
         self.view_stack.add_titled_with_icon(self.wifi_page, "wifi", "Wi-Fi & Health", "network-wireless-symbolic")
 
-        # 3. Throne & Apps Page
-        self.throne_page = self._build_throne_page()
-        self.view_stack.add_titled_with_icon(self.throne_page, "throne", "Throne & Apps", "network-vpn-symbolic")
+        # 3. VPN & Proxy Page (Universal for Throne, NetMod, Netch, Xray, etc.)
+        self.vpn_page = self._build_vpn_page()
+        self.view_stack.add_titled_with_icon(self.vpn_page, "vpn", "VPN & Proxy", "network-vpn-symbolic")
 
         # 4. History Page
         self.history_page = self._build_history_page()
@@ -298,14 +298,14 @@ class MainWindow(Adw.ApplicationWindow):
         c1.append(self.norm_today_lbl)
         cards_grid.attach(c1, 0, 0, 1, 1)
 
-        # Card 2: Throne VPN
+        # Card 2: VPN / Proxy
         c2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         c2.add_css_class("metric-card")
         h2 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        t2 = Gtk.Label(label="Throne VPN", halign=Gtk.Align.START)
-        t2.add_css_class("card-title")
+        self.card_vpn_title = Gtk.Label(label="VPN / Proxy", halign=Gtk.Align.START)
+        self.card_vpn_title.add_css_class("card-title")
         ico2 = Gtk.Label(label="🛡️", halign=Gtk.Align.END, hexpand=True)
-        h2.append(t2)
+        h2.append(self.card_vpn_title)
         h2.append(ico2)
         self.vpn_down_lbl = Gtk.Label(label="0.0 KB/s", halign=Gtk.Align.START)
         self.vpn_down_lbl.add_css_class("speed-value-vpn")
@@ -353,7 +353,7 @@ class MainWindow(Adw.ApplicationWindow):
         g_legend = Gtk.Label(halign=Gtk.Align.END, hexpand=True)
         g_legend.set_markup(
             '<span foreground="#38bdf8">● Direct</span>   '
-            '<span foreground="#c084fc">● Throne VPN</span>'
+            '<span foreground="#c084fc">● VPN / Proxy</span>'
         )
         g_header.append(g_title)
         g_header.append(g_legend)
@@ -499,8 +499,8 @@ class MainWindow(Adw.ApplicationWindow):
         scroller.set_child(clamp)
         return scroller
 
-    # --- Page 3: Throne & Apps ---
-    def _build_throne_page(self) -> Gtk.Widget:
+    # --- Page 3: VPN & Proxy (Universal) ---
+    def _build_vpn_page(self) -> Gtk.Widget:
         scroller = Gtk.ScrolledWindow()
         scroller.set_vexpand(True)
         scroller.set_hexpand(True)
@@ -514,29 +514,41 @@ class MainWindow(Adw.ApplicationWindow):
         box.set_margin_top(12)
         box.set_margin_bottom(24)
 
-        throne_group = Adw.PreferencesGroup(title="Throne VPN Status")
+        vpn_group = Adw.PreferencesGroup(title="VPN and Proxy Status")
 
-        self.row_throne_state = Adw.ActionRow(title="Connection State")
-        self.val_throne_state = Gtk.Label(label="Checking...", halign=Gtk.Align.END)
-        self.val_throne_state.add_css_class("info-val")
-        self.row_throne_state.add_suffix(self.val_throne_state)
-        throne_group.add(self.row_throne_state)
+        self.row_vpn_state = Adw.ActionRow(title="Connection State")
+        self.val_vpn_state = Gtk.Label(label="Checking...", halign=Gtk.Align.END)
+        self.val_vpn_state.add_css_class("info-val")
+        self.row_vpn_state.add_suffix(self.val_vpn_state)
+        vpn_group.add(self.row_vpn_state)
 
-        self.row_throne_prof = Adw.ActionRow(title="Config Profile")
-        self.val_throne_prof = Gtk.Label(label="None", halign=Gtk.Align.END)
-        self.val_throne_prof.add_css_class("info-val")
-        self.row_throne_prof.add_suffix(self.val_throne_prof)
-        throne_group.add(self.row_throne_prof)
+        self.row_vpn_client = Adw.ActionRow(title="Detected Client / Tool")
+        self.val_vpn_client = Gtk.Label(label="None", halign=Gtk.Align.END)
+        self.val_vpn_client.add_css_class("info-val")
+        self.row_vpn_client.add_suffix(self.val_vpn_client)
+        vpn_group.add(self.row_vpn_client)
 
-        self.row_throne_tun = Adw.ActionRow(title="Virtual TUN Interface")
-        self.val_throne_tun = Gtk.Label(label="None", halign=Gtk.Align.END)
-        self.val_throne_tun.add_css_class("info-val")
-        self.row_throne_tun.add_suffix(self.val_throne_tun)
-        throne_group.add(self.row_throne_tun)
+        self.row_vpn_prof = Adw.ActionRow(title="Active Profile / Protocol")
+        self.val_vpn_prof = Gtk.Label(label="None", halign=Gtk.Align.END)
+        self.val_vpn_prof.add_css_class("info-val")
+        self.row_vpn_prof.add_suffix(self.val_vpn_prof)
+        vpn_group.add(self.row_vpn_prof)
 
-        box.append(throne_group)
+        self.row_vpn_tun = Adw.ActionRow(title="Virtual TUN / Wintun Interface")
+        self.val_vpn_tun = Gtk.Label(label="None", halign=Gtk.Align.END)
+        self.val_vpn_tun.add_css_class("info-val")
+        self.row_vpn_tun.add_suffix(self.val_vpn_tun)
+        vpn_group.add(self.row_vpn_tun)
 
-        self.app_group = Adw.PreferencesGroup(title="Top Apps Consuming VPN (Throne Database)")
+        self.row_vpn_procs = Adw.ActionRow(title="Running Proxy Processes")
+        self.val_vpn_procs = Gtk.Label(label="None", halign=Gtk.Align.END)
+        self.val_vpn_procs.add_css_class("info-val")
+        self.row_vpn_procs.add_suffix(self.val_vpn_procs)
+        vpn_group.add(self.row_vpn_procs)
+
+        box.append(vpn_group)
+
+        self.app_group = Adw.PreferencesGroup(title="Applications Routed via Proxy / VPN")
         self.app_rows_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
         self.app_group.add(self.app_rows_container)
         box.append(self.app_group)
@@ -585,7 +597,7 @@ class MainWindow(Adw.ApplicationWindow):
         box.set_margin_bottom(24)
 
         # Appearance Settings Group
-        appearance_group = Adw.PreferencesGroup(title="Appearance & Theme")
+        appearance_group = Adw.PreferencesGroup(title="Appearance and Theme")
 
         self.theme_row = Adw.ComboRow(title="Theme")
         self.theme_row.set_subtitle("Switch between dark, light, or follow system default")
@@ -596,20 +608,34 @@ class MainWindow(Adw.ApplicationWindow):
 
         box.append(appearance_group)
 
-        # Traffic Accounting Settings Group
-        traffic_group = Adw.PreferencesGroup(title="Traffic Accounting Logic")
+        # Traffic Accounting & Proxy Settings Group
+        proxy_settings_group = Adw.PreferencesGroup(title="VPN and Proxy Compatibility")
 
-        acct_row = Adw.ActionRow(title="Exclusive VPN Mode")
-        acct_row.set_subtitle("When Throne VPN is connected, Direct Wi-Fi reads 0 B/s and all traffic counts as VPN")
-        active_badge = Gtk.Label(label="ACTIVE")
+        support_row = Adw.ActionRow(title="Supported Clients")
+        support_row.set_subtitle("Throne • NetMod • Netch • NekoRay • v2rayA • Clash • Sing-Box • Xray • WireGuard • OpenVPN")
+        auto_badge = Gtk.Label(label="AUTO-DETECT")
+        auto_badge.add_css_class("badge-vpn-active")
+        support_row.add_suffix(auto_badge)
+        proxy_settings_group.add(support_row)
+
+        acct_row = Adw.ActionRow(title="Exclusive Mode")
+        acct_row.set_subtitle("When VPN is active, Direct Wi-Fi reads 0 B/s and all traffic counts as VPN")
+        active_badge = Gtk.Label(label="ENABLED")
         active_badge.add_css_class("badge-vpn-active")
         acct_row.add_suffix(active_badge)
-        traffic_group.add(acct_row)
+        proxy_settings_group.add(acct_row)
 
-        box.append(traffic_group)
+        # Custom Interface Override Entry
+        self.custom_iface_row = Adw.EntryRow(title="Custom Interface Override (Optional)")
+        saved_iface = self.collector.db.get_setting("custom_vpn_iface", "")
+        self.custom_iface_row.set_text(saved_iface)
+        self.custom_iface_row.connect("changed", self._on_custom_iface_changed)
+        proxy_settings_group.add(self.custom_iface_row)
+
+        box.append(proxy_settings_group)
 
         # Data Management Group
-        data_group = Adw.PreferencesGroup(title="Data & History Management")
+        data_group = Adw.PreferencesGroup(title="Data and History Management")
 
         reset_today_row = Adw.ActionRow(title="Reset Today's Usage")
         reset_today_row.set_subtitle("Zero out accumulated bytes for today and current session")
@@ -638,7 +664,7 @@ class MainWindow(Adw.ApplicationWindow):
         about_group = Adw.PreferencesGroup(title="About NetSplit")
 
         ver_row = Adw.ActionRow(title="NetSplit Version")
-        ver_lbl = Gtk.Label(label="1.1.0", halign=Gtk.Align.END)
+        ver_lbl = Gtk.Label(label="1.2.0 (Multi-Protocol Edition)", halign=Gtk.Align.END)
         ver_lbl.add_css_class("info-val")
         ver_row.add_suffix(ver_lbl)
         about_group.add(ver_row)
@@ -655,6 +681,11 @@ class MainWindow(Adw.ApplicationWindow):
         clamp.set_child(box)
         scroller.set_child(clamp)
         return scroller
+
+    def _on_custom_iface_changed(self, row):
+        text = row.get_text().strip()
+        self.collector.db.set_setting("custom_vpn_iface", text)
+        self.collector.vpn.set_custom_interface(text)
 
     def _on_reset_today_clicked(self, _):
         self.collector.reset_today()
@@ -747,17 +778,21 @@ class MainWindow(Adw.ApplicationWindow):
         today = snapshot["today_usage"]
         wifi = snapshot["wifi"]
         ping = snapshot["ping"]
-        throne = snapshot["throne"]
+        vpn = snapshot.get("vpn", snapshot.get("throne", {}))
+        throne = vpn
 
         # 1. Update Header & Badge
-        if throne["tun_active"]:
-            self.vpn_badge.set_label("VPN ACTIVE")
+        if vpn["tun_active"]:
+            proto = vpn.get('profile_type', 'ACTIVE')
+            self.vpn_badge.set_label(f"VPN: {proto}")
             self.vpn_badge.remove_css_class("badge-vpn-inactive")
             self.vpn_badge.add_css_class("badge-vpn-active")
+            self.card_vpn_title.set_label(f"VPN / Proxy ({proto})")
         else:
             self.vpn_badge.set_label("DIRECT ONLY")
             self.vpn_badge.remove_css_class("badge-vpn-active")
             self.vpn_badge.add_css_class("badge-vpn-inactive")
+            self.card_vpn_title.set_label("VPN / Proxy")
 
         # 2. Update Quick Status Strip
         wifi_ssid = wifi.get("ssid", "Disconnected")
@@ -789,7 +824,7 @@ class MainWindow(Adw.ApplicationWindow):
         # Progress bar
         tot_bps = speeds["total_down_bps"] + speeds["total_up_bps"]
         vpn_bps = speeds["vpn_down_bps"] + speeds["vpn_up_bps"]
-        ratio = (vpn_bps / tot_bps) if tot_bps > 0 else (1.0 if throne["tun_active"] else 0.0)
+        ratio = (vpn_bps / tot_bps) if tot_bps > 0 else (1.0 if vpn["tun_active"] else 0.0)
         self.vpn_prog_bar.set_fraction(min(1.0, max(0.0, ratio)))
         vpn_pct = int(ratio * 100)
         direct_pct = 100 - vpn_pct
@@ -817,13 +852,17 @@ class MainWindow(Adw.ApplicationWindow):
         self.val_local_ip.set_label(wifi.get("local_ip") or "N/A")
         self.val_public_ip.set_label(ping.get("public_ip") or "Checking...")
 
-        # 5. Throne Status & Apps
-        self.val_throne_state.set_label(throne.get("status_text", "N/A"))
-        self.val_throne_prof.set_label(f"{throne.get('active_profile', 'None')} ({throne.get('profile_type', '')})")
-        self.val_throne_tun.set_label(throne.get("tun_interface") or "Inactive")
+        # 5. VPN Status & Apps
+        self.val_vpn_state.set_label(vpn.get("status_text", "N/A"))
+        self.val_vpn_client.set_label(vpn.get("client_name", "None"))
+        self.val_vpn_prof.set_label(f"{vpn.get('active_profile', 'None')} ({vpn.get('profile_type', '')})")
+        self.val_vpn_tun.set_label(vpn.get("tun_interface") or "Inactive")
+
+        running_procs = [t["name"] for t in vpn.get("running_tools", [])]
+        self.val_vpn_procs.set_label(", ".join(running_procs) if running_procs else "None detected")
 
         # Populate top apps
-        top_apps = throne.get("top_apps", [])
+        top_apps = vpn.get("top_apps", [])
         child = self.app_rows_container.get_first_child()
         while child:
             next_child = child.get_next_sibling()
@@ -831,7 +870,7 @@ class MainWindow(Adw.ApplicationWindow):
             child = next_child
 
         if not top_apps:
-            row = Adw.ActionRow(title="No app traffic recorded yet in Throne database")
+            row = Adw.ActionRow(title="No per-app breakdown available for current client")
             self.app_rows_container.append(row)
         else:
             for app in top_apps:

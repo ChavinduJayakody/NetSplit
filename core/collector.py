@@ -14,7 +14,7 @@ import psutil
 
 from core.wifi import get_wifi_details, get_default_gateway_and_iface
 from core.ping_probe import PingProbe
-from core.throne import ThroneMonitor
+from core.vpn_detector import VpnDetector
 from core.database import StatsDatabase
 
 
@@ -57,7 +57,9 @@ class NetworkCollector:
             self.wifi_iface = "Wi-Fi" if self.is_windows else "wlan0"
 
         self.db = StatsDatabase()
-        self.throne = ThroneMonitor()
+        custom_iface = self.db.get_setting("custom_vpn_iface", None)
+        self.vpn = VpnDetector(custom_iface=custom_iface)
+        self.throne = self.vpn  # Backwards compatibility alias
         self.ping_probe = PingProbe(gateway_ip=gw)
 
         # Wi-Fi initial info
@@ -278,7 +280,7 @@ class NetworkCollector:
         }
 
         ping_stats = self.ping_probe.get_stats()
-        throne_stats = self.throne.get_status_summary()
+        vpn_stats = self.vpn.get_status_summary()
 
         return {
             "speeds": speeds,
@@ -286,7 +288,8 @@ class NetworkCollector:
             "today_usage": today_usage,
             "wifi": wifi_snap,
             "ping": ping_stats,
-            "throne": throne_stats,
+            "vpn": vpn_stats,
+            "throne": vpn_stats,  # Alias for compatibility
             "speed_history": history_list[-30:],
         }
 
