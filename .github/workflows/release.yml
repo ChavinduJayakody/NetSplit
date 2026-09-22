@@ -1,0 +1,202 @@
+name: Release NetSplit
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g. v1.3.0)'
+        required: false
+        default: 'v1.3.0'
+
+permissions:
+  contents: write
+
+jobs:
+  # ============================================================================
+  # 1. Build Windows Standalone Executable (.exe)
+  # ============================================================================
+  build-windows:
+    name: Build Windows x64 (.exe)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller pywebview[cef]
+          pip install -r requirements.txt
+
+      - name: Build Standalone Windows Executable
+        run: |
+          pyinstaller --clean --noconfirm packaging/NetSplit.spec
+
+      - name: Rename & Checksum Binary
+        shell: bash
+        run: |
+          mkdir -p release_assets
+          cp dist/NetSplit.exe release_assets/NetSplit-Windows-x64.exe
+          cd release_assets
+          sha256sum NetSplit-Windows-x64.exe > NetSplit-Windows-x64.exe.sha256
+          echo "Windows binary SHA-256:"
+          cat NetSplit-Windows-x64.exe.sha256
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64-executable
+          path: release_assets/*
+
+  # ============================================================================
+  # 2. Build Linux Standalone AppImage (.AppImage)
+  # ============================================================================
+  build-linux:
+    name: Build Linux x86_64 (.AppImage)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Install Linux System Libraries (GTK 4 & Libadwaita)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-4-dev \
+            libadwaita-1-dev \
+            python3-gi \
+            python3-gi-cairo \
+            gir1.2-gtk-4.0 \
+            gir1.2-adw-1 \
+            libcairo2-dev \
+            pkg-config \
+            libgirepository1.0-dev \
+            curl
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller pywebview
+          pip install -r requirements.txt
+
+      - name: Compile Binary with PyInstaller
+        run: |
+          pyinstaller --clean --noconfirm packaging/NetSplit.spec
+
+      - name: Package into AppImage
+        run: |
+          mkdir -p build_appimage/NetSplit.AppDir/usr/bin
+          mkdir -p build_appimage/NetSplit.AppDir/usr/share/applications
+          mkdir -p build_appimage/NetSplit.AppDir/usr/share/icons/hicolor/scalable/apps
+          mkdir -p build_appimage/NetSplit.AppDir/usr/share/icons/hicolor/256x256/apps
+
+          APP_DIR="build_appimage/NetSplit.AppDir"
+          cp dist/NetSplit "$APP_DIR/usr/bin/netsplit"
+          cp netsplit.desktop "$APP_DIR/usr/share/applications/netsplit.desktop"
+          cp netsplit.desktop "$APP_DIR/netsplit.desktop"
+          cp assets/netsplit.svg "$APP_DIR/usr/share/icons/hicolor/scalable/apps/netsplit.svg"
+          cp assets/netsplit.svg "$APP_DIR/netsplit.svg"
+          cp assets/netsplit_256.png "$APP_DIR/usr/share/icons/hicolor/256x256/apps/netsplit.png"
+          cp assets/netsplit_256.png "$APP_DIR/.DirIcon"
+
+          cat << 'EOF' > "$APP_DIR/AppRun"
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          export PATH="${HERE}/usr/bin:${PATH}"
+          export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
+          export XDG_DATA_DIRS="${HERE}/usr/share:${XDG_DATA_DIRS}"
+          exec "${HERE}/usr/bin/netsplit" "$@"
+          EOF
+          chmod +x "$APP_DIR/AppRun"
+
+          curl -sL https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -o appimagetool
+          chmod +x appimagetool
+          export ARCH=x86_64
+          ./appimagetool --appimage-extract-and-run "$APP_DIR" dist/NetSplit-Linux-x86_64.AppImage
+
+      - name: Checksum AppImage
+        run: |
+          mkdir -p release_assets
+          cp dist/NetSplit-Linux-x86_64.AppImage release_assets/
+          cd release_assets
+          sha256sum NetSplit-Linux-x86_64.AppImage > NetSplit-Linux-x86_64.AppImage.sha256
+          echo "Linux AppImage SHA-256:"
+          cat NetSplit-Linux-x86_64.AppImage.sha256
+
+      - name: Upload Linux Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x86_64-appimage
+          path: release_assets/*
+
+  # ============================================================================
+  # 3. Create Official GitHub Release
+  # ============================================================================
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-x64-executable
+          path: release_files
+
+      - name: Download Linux Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-x86_64-appimage
+          path: release_files
+
+      - name: Generate Consolidated Checksums
+        run: |
+          cd release_files
+          cat *.sha256 > SHA256SUMS.txt
+          rm -f *.sha256
+          echo "Consolidated Checksums:"
+          cat SHA256SUMS.txt
+
+      - name: Determine Release Tag
+        id: release_tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.version }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish Release with Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release_tag.outputs.tag }}
+          name: NetSplit ${{ steps.release_tag.outputs.tag }}
+          files: |
+            release_files/NetSplit-Windows-x64.exe
+            release_files/NetSplit-Linux-x86_64.AppImage
+            release_files/SHA256SUMS.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: false

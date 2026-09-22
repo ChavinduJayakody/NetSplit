@@ -95,7 +95,8 @@ class ThroneMonitor:
 
         try:
             uri = f"file:{self.db_path}?mode=ro"
-            with sqlite3.connect(uri, uri=True, timeout=1.0) as conn:
+            conn = sqlite3.connect(uri, uri=True, timeout=1.0)
+            try:
                 c = conn.cursor()
                 c.execute("SELECT id, name, type FROM profiles LIMIT 10;")
                 profiles = c.fetchall()
@@ -106,6 +107,8 @@ class ThroneMonitor:
                         "type": profiles[0][2],
                         "all_profiles": [{"id": p[0], "name": p[1], "type": p[2]} for p in profiles]
                     }
+            finally:
+                conn.close()
         except Exception:
             pass
         return None

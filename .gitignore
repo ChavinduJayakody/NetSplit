@@ -11,6 +11,9 @@ __pycache__/
 
 # Distribution / packaging
 build/
+build_appimage/
+release_assets/
+release_files/
 develop-eggs/
 dist/
 downloads/

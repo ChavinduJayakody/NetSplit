@@ -162,13 +162,16 @@ class VpnDetector:
         if os.path.exists(self.throne_db):
             try:
                 uri = f"file:{self.throne_db}?mode=ro"
-                with sqlite3.connect(uri, uri=True, timeout=1.0) as conn:
+                conn = sqlite3.connect(uri, uri=True, timeout=1.0)
+                try:
                     c = conn.cursor()
                     c.execute("SELECT name, type FROM profiles LIMIT 1;")
                     row = c.fetchone()
                     if row:
                         proto = (row[1] or "VPN").upper()
                         return row[0], proto
+                finally:
+                    conn.close()
             except Exception:
                 pass
 

@@ -1,151 +1,219 @@
-# NetSplit
+<div align="center">
 
-A cross-platform real-time network speed and usage monitor tailored for tracking **Direct Wi-Fi Internet** alongside **VPN / Proxy traffic via Throne software**.
+  <img src="assets/netsplit.svg" width="128" height="128" alt="NetSplit Logo" />
 
-Works on **Linux** (CachyOS / Arch / Ubuntu / Fedora) and **Windows** (10 / 11).
+  # NetSplit
 
----
+  **Cross-Platform Real-Time Network & VPN / Proxy Traffic Split Monitor**
 
-## Key Features
+  [![GitHub Release](https://img.shields.io/github/v/release/ChavinduJayakody/NetSplit?style=for-the-badge&color=38bdf8&logo=github)](https://github.com/ChavinduJayakody/NetSplit/releases)
+  [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-c084fc?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/ChavinduJayakody/NetSplit/releases)
+  [![License](https://img.shields.io/badge/License-MIT-34d399?style=for-the-badge)](LICENSE)
+  [![Python](https://img.shields.io/badge/Python-3.10%2B-fbbf24?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
 
-1. **Split Traffic Accounting (Zero Root/Admin Required)**:
-   - **Direct (Normal) Internet**: Measures non-tunneled Wi-Fi data in real-time.
-   - **Throne VPN**: Accurately isolates traffic routed through Throne's virtual TUN adapter (`throne-tun` / `wintun` / `sing-box`).
-   - **Combined Total**: Monitors physical Wi-Fi link speed and bandwidth.
-2. **Real-time Speeds & Live Graph**:
-   - 1-second sample rate for download and upload speeds.
-   - Live stream chart showing traffic history for the last 30–60 seconds.
-3. **Throne Database Integration**:
-   - Reads Throne's internal database (`throne_stats.db`) in read-only mode to show top applications consuming VPN data (e.g. Brave, Discord, Steam, Spotify).
-4. **Wi-Fi & Network Diagnostics**:
-   - Network SSID, BSSID, Signal Quality (%), Signal Bars (`▂▄▆█`).
-   - Link Speed / Bitrate capability (e.g., 1170 Mbit/s, 866 Mbit/s).
-   - Frequency Band & Channel (2.4 GHz vs 5 GHz).
-   - Latency / Ping: Local Gateway (Router Wi-Fi hop) & Internet (Cloudflare 1.1.1.1).
-   - Local IP and Public Egress IP detection (identifies when your public IP changes due to VPN).
-5. **Persistent Usage History**:
-   - Stores session, hourly, and daily usage in a lightweight SQLite database.
-6. **Cross-Platform Desktop UI**:
-   - **Desktop Window (Windows & Linux)**: Native desktop window with hardware acceleration.
-   - **Native GNOME App (Linux)**: Modern Libadwaita / GTK 4 interface matching GNOME.
-   - **Web Dashboard**: Modern HTML5/CSS3 dashboard accessible via any browser.
-   - **Terminal TUI**: Real-time curses-style dashboard for CLI / terminal sessions.
+  <p align="center">
+    <b>NetSplit</b> accurately splits and accounts for <b>Direct Wi-Fi Internet</b> versus <b>VPN / Proxy tunnel data</b> in real time.<br/>
+    Designed for metered connections, split-tunneling proxies, and privacy-conscious users.
+  </p>
+
+  <p align="center">
+    <a href="#-downloads--installation"><b>Downloads</b></a> •
+    <a href="#-screenshots"><b>Screenshots</b></a> •
+    <a href="#-key-features"><b>Features</b></a> •
+    <a href="#-quickstart-from-source"><b>Source Build</b></a> •
+    <a href="#-supported-vpn--proxy-clients"><b>Supported Clients</b></a>
+  </p>
+
+</div>
 
 ---
 
-## Quick Start
+## 📦 Downloads & Installation
 
-### On Linux
+Pre-compiled standalone binaries are automatically built and published with every release. No dependencies or Python installation required!
 
-You can launch using the provided script:
+| Platform | Format | Download Link | Notes |
+|:---|:---|:---|:---|
+| **Linux (x86_64)** | **`.AppImage`** | [**Download Latest Linux AppImage**](https://github.com/ChavinduJayakody/NetSplit/releases/latest) | Works on Ubuntu, Arch, Fedora, Debian, Mint, CachyOS. Make executable with `chmod +x` and run! |
+| **Windows (x64)** | **`.exe`** | [**Download Latest Windows Standalone (.exe)**](https://github.com/ChavinduJayakody/NetSplit/releases/latest) | Single-file executable. Runs directly using built-in Microsoft Edge WebView2. |
+
+### Running the AppImage on Linux
 ```bash
+# Make executable
+chmod +x NetSplit-Linux-x86_64.AppImage
+
+# Run NetSplit
+./NetSplit-Linux-x86_64.AppImage
+```
+
+---
+
+## 📸 Screenshots
+
+<div align="center">
+
+### 1. Live Traffic Monitor & Real-Time Waveform
+*Real-time meters for Direct Wi-Fi, VPN / Proxy, and Total Physical traffic with live Cairo waveforms and split ratio meter.*
+<br/><br/>
+<img src="assets/screenshots/overview.png" width="840" alt="NetSplit Overview Dashboard" />
+
+<br/><br/>
+
+### 2. Wi-Fi Health & Latency Diagnostics
+*Live Wi-Fi signal quality, link capability, frequency channel, router gateway ping, Internet ping, and masked IP identifiers.*
+<br/><br/>
+<img src="assets/screenshots/wifi.png" width="840" alt="NetSplit Wi-Fi and Diagnostics" />
+
+<br/><br/>
+
+### 3. VPN & Proxy Multi-Protocol Detection
+*Auto-detects active TUN adapters (`throne-tun`, `wintun`), running proxy processes (VLESS, Xray, Sing-Box, etc.), and per-app data breakdown.*
+<br/><br/>
+<img src="assets/screenshots/vpn.png" width="840" alt="NetSplit VPN Status and Routed Applications" />
+
+<br/><br/>
+
+### 4. Native Preferences & Exclusive Mode Settings
+*Toggle Exclusive Accounting Mode, customize IP masking, switch between Dark/Light/System theme, and control System Tray behavior.*
+<br/><br/>
+<img src="assets/screenshots/settings.png" width="840" alt="NetSplit Settings and Preferences" />
+
+</div>
+
+---
+
+## ✨ Key Features
+
+- **⚡ Exclusive Accounting Mode (Toggleable)**:
+  - When VPN is active, Direct Wi-Fi reads **0 B/s** and all traffic counts as VPN.
+  - Prevents double-counting when all device traffic is tunneled through a proxy or VPN.
+  - Can be switched to concurrent split mode anytime in Settings.
+- **🛡️ Multi-Protocol VPN & Proxy Auto-Detection**:
+  - Automatically detects **Throne, NetMod, Netch, NekoRay, v2rayA, Clash, Sing-Box, Xray, WireGuard, and OpenVPN**.
+  - Identifies active protocol types (VLESS, VMess, Trojan, Shadowsocks, WireGuard).
+  - Inspects virtual TUN adapters (`throne-tun`, `wintun`, `tun0`) without requiring root/admin rights.
+- **👁️ Privacy Mode & IP Masking**:
+  - Automatically masks sensitive local (`192.168.1.***`) and public egress IPs across all screens.
+  - Interactive one-click reveal/conceal buttons to inspect IPs securely on demand.
+- **📈 Cairo Live Waveform Graph**:
+  - Rolling 30-second Cairo-rendered waveform chart tracking live upload and download trends.
+- **📡 In-Depth Wi-Fi Diagnostics**:
+  - SSID, signal percentage with dynamic signal bars (`▂▄▆█`), bitrate capability (up to 1200+ Mbit/s), and frequency channel (2.4 GHz vs 5 GHz).
+  - Dual ping monitoring: Local Gateway (router hop) and Internet DNS (Cloudflare 1.1.1.1).
+- **💾 Local SQLite History**:
+  - Tracks session bandwidth, hourly consumption, and 7-day daily history without relying on external cloud services.
+- **🎛️ System Tray & Autostart**:
+  - Native StatusNotifierItem (D-Bus) on Linux and Shell_NotifyIcon on Windows.
+  - Minimize-to-tray on close, background monitoring 24/7, and startup launch toggle.
+- **🎨 Modern Native GUI**:
+  - Linux: Clean GNOME Libadwaita / GTK 4 interface matching system aesthetics.
+  - Windows: High-performance WebView2 desktop window with system theme adaptation.
+
+---
+
+## 🛠️ Supported VPN & Proxy Clients
+
+NetSplit automatically detects and monitors:
+
+| Client / Core | Detection Method | Supported Protocols |
+|:---|:---|:---|
+| **Throne** | Virtual TUN (`throne-tun`) + SQLite stats DB | VLESS, VMess, Trojan, Shadowsocks, Hysteria |
+| **NetMod (Syna)** | TUN device + core process | SSH, SSL, Shadowsocks, V2Ray |
+| **Netch** | Wintun adapter + Netch process | Process Mode, TUN/TAP Mode, WireGuard |
+| **NekoRay / Matsuri** | TUN mode + sing-box core | SOCKS5, Shadowsocks, VMess, VLESS |
+| **v2rayA** | Virtual adapter + xray/v2ray-core | Transparent proxy, VLESS, VMess |
+| **Clash / Clash Verge** | Tun mode + clash core | Mixed, Shadowsocks, VMess, Trojan |
+| **Sing-Box** | Virtual TUN adapter | WireGuard, VLESS, Trojan, ShadowTLS |
+| **Xray / V2Ray Core** | Tun interface + xray executable | VLESS, VMess, Trojan, Splithttp |
+| **WireGuard** | `wg0` / Wintun adapter | Native WireGuard |
+| **OpenVPN** | `tun0` / TAP-Windows adapter | OpenVPN UDP/TCP |
+
+*(You can also set a **Custom Interface Override** in Settings for specialized network adapters).*
+
+---
+
+## 🚀 Quickstart from Source
+
+### Linux (Ubuntu / Debian / Arch / Fedora)
+
+```bash
+# Clone the repository
+git clone https://github.com/ChavinduJayakody/NetSplit.git
+cd NetSplit
+
+# Run directly via the automated launcher
 ./run.sh
 ```
 
 Or manually:
 ```bash
-# Optional: create virtual environment
+# Create virtual environment with system site-packages (for GTK4/Adwaita)
 python3 -m venv --system-site-packages venv
 source venv/bin/activate
 pip install -r requirements.txt
 
-# Run Desktop App (or native GNOME app)
+# Launch native GTK 4 / Libadwaita application
 python3 main.py
-
-# Or run Desktop App window directly:
-python3 main.py --desktop
-
-# Or run in Web Browser mode:
-python3 main.py --web
-
-# Or run in Terminal CLI mode:
-python3 main.py --cli
 ```
 
----
+### Windows (10 / 11)
 
-### On Windows
-
-1. Double-click **`run.bat`** (or run `run.bat` in Command Prompt / PowerShell).
-   - Automatically sets up a virtual environment and installs dependencies (`psutil`, `pywebview`).
-   - Opens the Desktop App window using Windows' built-in Microsoft Edge WebView2 runtime.
-
-Or manually via Command Prompt / PowerShell:
 ```cmd
-python -m venv venv
-call venv\Scripts\activate.bat
-pip install -r requirements.txt
+:: Clone repository
+git clone https://github.com/ChavinduJayakody/NetSplit.git
+cd NetSplit
 
-:: Launch Desktop App Window
-python main.py --desktop
-
-:: Or Web Dashboard
-python main.py --web
-
-:: Or Terminal mode
-python main.py --cli
+:: Run launcher (auto-configures environment and dependencies)
+run.bat
 ```
 
 ---
 
-## Command Line Options
+## 💻 CLI & Alternative Modes
+
+NetSplit provides multiple runtime modes:
 
 ```text
-usage: main.py [-h] [--desktop] [--gnome] [--web] [--cli] [--port PORT] [--host HOST]
+python3 main.py [OPTIONS]
 
-options:
-  -h, --help     Show this help message and exit
-  --desktop      Launch cross-platform Desktop App window (Default on Windows)
-  --gnome        Launch native GNOME GTK4/Libadwaita application (Linux only)
-  --web          Launch web dashboard server only (view in browser)
-  --cli          Launch live terminal TUI monitor
-  --port PORT    Port for web/desktop server (default: 8765)
-  --host HOST    Host address to bind (default: 127.0.0.1)
+Options:
+  --gnome        Launch native GNOME GTK4/Libadwaita application (Default on Linux)
+  --desktop      Launch native Desktop App window (Default on Windows)
+  --web          Launch headless web dashboard server only (View at http://localhost:8765)
+  --cli          Launch real-time curses terminal monitor (TUI)
+  --minimized    Start minimized directly into system tray
+  --host HOST    Host address to bind to (Default: 127.0.0.1)
+  --port PORT    Port for web server (Default: 8765)
 ```
 
 ---
 
-## How Normal vs Throne VPN Traffic Is Separated
+## 🔨 Building Binaries Locally
 
-1. **Wi-Fi Interface**:
-   - Physical bytes are polled every second from the network adapter (`wlan0` on Linux, `Wi-Fi` on Windows).
-2. **Throne TUN Interface**:
-   - When Throne VPN connects, a virtual tunnel adapter is created (`throne-tun` on Linux, `Throne-tun` or `wintun` on Windows).
-   - Bytes transferred over this interface are isolated as **VPN Traffic**.
-3. **Direct Traffic Calculation**:
-   - When Throne VPN is active:
-     $$\text{Direct Speed} = \max(0, \text{Physical Wi-Fi Speed} - \text{VPN Speed})$$
-   - When Throne VPN is disconnected:
-     $$\text{Direct Speed} = \text{Physical Wi-Fi Speed}$$
-4. **App Attribution**:
-   - Throne logs per-process bandwidth in `throne_stats.db`. NetworkMonitor connects with URI `mode=ro` to safely inspect process consumption without file locks or permissions hurdles.
+### Build Linux AppImage
+```bash
+./scripts/build_appimage.sh
+# Output binary: dist/NetSplit-Linux-x86_64.AppImage
+```
+
+### Build Windows Standalone Executable
+```cmd
+scripts\build_exe.bat
+:: Output binary: dist\NetSplit.exe
+```
 
 ---
 
-## File Structure
+## 🤖 CI/CD Automation
 
-```
-NetworkMonitor/
-├── core/
-│   ├── collector.py     # Main engine: samples counters, computes speeds, splits traffic
-│   ├── database.py      # SQLite manager for session & daily statistics
-│   ├── ping_probe.py    # Latency ping (Gateway & Internet) and Public IP detection
-│   ├── throne.py        # Throne process, TUN detection, and SQLite stats integration
-│   └── wifi.py          # Cross-platform Wi-Fi information (nmcli on Linux, netsh on Windows)
-├── gui/
-│   ├── app.py           # Native GNOME GTK4 / Libadwaita desktop app
-│   └── desktop.py       # Cross-platform pywebview desktop window runner
-├── web/
-│   ├── server.py        # Embedded HTTP/REST/SSE server
-│   └── static/
-│       └── index.html   # Modern responsive dashboard with Chart.js
-├── cli/
-│   └── monitor.py       # Terminal TUI live monitor
-├── tests/
-│   └── test_all.py      # Automated test suite
-├── main.py              # Main unified entry point
-├── requirements.txt     # Python package requirements
-├── run.sh               # Linux launcher script
-├── run.bat              # Windows launcher script
-└── README.md
-```
+NetSplit uses **GitHub Actions** (`.github/workflows/release.yml`) for automated builds:
+- Triggers on every release tag push (`git tag v1.3.0 && git push origin v1.3.0`) or manual workflow dispatch.
+- Compiles both `NetSplit-Windows-x64.exe` and `NetSplit-Linux-x86_64.AppImage`.
+- Generates `SHA256SUMS.txt` cryptographic verification checksums.
+- Automatically attaches all assets to the official GitHub Release.
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
