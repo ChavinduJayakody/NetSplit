@@ -100,6 +100,33 @@ class StatsDatabase:
         finally:
             conn.close()
 
+    def get_bool_setting(self, key: str, default: bool = False) -> bool:
+        val = self.get_setting(key, None)
+        if val is None:
+            return default
+        return val.lower() in ("true", "1", "yes", "on")
+
+    def set_bool_setting(self, key: str, value: bool):
+        self.set_setting(key, "true" if value else "false")
+
+    def get_tray_enabled(self) -> bool:
+        return self.get_bool_setting("tray_enabled", default=True)
+
+    def set_tray_enabled(self, enabled: bool):
+        self.set_bool_setting("tray_enabled", enabled)
+
+    def get_minimize_to_tray(self) -> bool:
+        return self.get_bool_setting("minimize_to_tray", default=True)
+
+    def set_minimize_to_tray(self, enabled: bool):
+        self.set_bool_setting("minimize_to_tray", enabled)
+
+    def get_start_minimized(self) -> bool:
+        return self.get_bool_setting("start_minimized", default=False)
+
+    def set_start_minimized(self, enabled: bool):
+        self.set_bool_setting("start_minimized", enabled)
+
     def reset_today_stats(self):
         today_str = datetime.datetime.now().strftime("%Y-%m-%d")
         conn = self._get_connection()

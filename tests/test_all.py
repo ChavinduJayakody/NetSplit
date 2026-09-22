@@ -56,6 +56,22 @@ class TestStatsDatabase(unittest.TestCase):
         self.db.set_setting("theme", "2")
         self.assertEqual(self.db.get_setting("theme"), "2")
 
+    def test_tray_and_startup_preferences(self):
+        # Test defaults
+        self.assertTrue(self.db.get_tray_enabled())
+        self.assertTrue(self.db.get_minimize_to_tray())
+        self.assertFalse(self.db.get_start_minimized())
+
+        # Test toggling
+        self.db.set_tray_enabled(False)
+        self.assertFalse(self.db.get_tray_enabled())
+
+        self.db.set_minimize_to_tray(False)
+        self.assertFalse(self.db.get_minimize_to_tray())
+
+        self.db.set_start_minimized(True)
+        self.assertTrue(self.db.get_start_minimized())
+
     def test_reset_data(self):
         self.db.record_traffic(100, 100, 200, 200)
         today = self.db.get_today_stats()
@@ -121,6 +137,37 @@ class TestCollector(unittest.TestCase):
         self.assertIn("wifi", snap)
         self.assertIn("throne", snap)
         collector.stop()
+
+
+class TestAutostartAndTray(unittest.TestCase):
+    def test_autostart_toggle(self):
+        from core.autostart import is_autostart_supported, is_autostart_enabled, set_autostart
+        self.assertTrue(is_autostart_supported())
+
+        initial_state = is_autostart_enabled()
+        try:
+            # Test enabling
+            res = set_autostart(True)
+            self.assertTrue(res)
+            self.assertTrue(is_autostart_enabled())
+
+            # Test disabling
+            res = set_autostart(False)
+            self.assertTrue(res)
+            self.assertFalse(is_autostart_enabled())
+        finally:
+            # Restore initial state
+            set_autostart(initial_state)
+
+    def test_tray_controller_lifecycle(self):
+        from core.tray import create_tray_controller
+        activated = []
+        tray = create_tray_controller(on_activate=lambda: activated.append(True))
+        tray.start()
+        tray.update_stats("5.2 MB/s", "1.1 MB/s", True)
+        tray.update_tooltip("Testing Tray Tooltip")
+        tray.stop()
+        self.assertFalse(tray.is_running)
 
 
 if __name__ == "__main__":

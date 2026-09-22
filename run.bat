@@ -26,6 +26,6 @@ echo [*] Checking dependencies...
 pip install -r requirements.txt --quiet
 
 echo [*] Launching Desktop App...
-python main.py --desktop
+python main.py --desktop %*
 
 pause

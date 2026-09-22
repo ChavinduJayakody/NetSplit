@@ -14,6 +14,8 @@ from gi.repository import Gtk, Adw, GLib, Gio
 import cairo
 
 from core.collector import NetworkCollector, format_bytes, format_speed
+from core.tray import create_tray_controller
+from core.autostart import is_autostart_supported, is_autostart_enabled, set_autostart
 
 
 CSS_STYLES = """
@@ -119,6 +121,7 @@ CSS_STYLES = """
 class MainWindow(Adw.ApplicationWindow):
     def __init__(self, app, collector: NetworkCollector):
         super().__init__(application=app, title="NetSplit")
+        self.app = app
         self.collector = collector
         self.set_default_size(880, 720)
         self.set_icon_name("netsplit")
@@ -137,11 +140,23 @@ class MainWindow(Adw.ApplicationWindow):
         # Apply persisted theme
         self._load_saved_theme()
 
+        # Handle window close request (minimize to tray if enabled)
+        self.connect("close-request", self._on_close_request)
+
         # Immediate first update
         self._on_tick()
 
         # Refresh timer every 1000ms
         GLib.timeout_add(1000, self._on_tick)
+
+    def _on_close_request(self, window):
+        min_to_tray = self.collector.db.get_minimize_to_tray()
+        tray_enabled = self.collector.db.get_tray_enabled()
+        if min_to_tray and tray_enabled:
+            self.set_visible(False)
+            return True  # Keep running in background!
+        self.app.quit_application()
+        return False
 
     def _load_saved_theme(self):
         saved_theme = self.collector.db.get_setting("theme", "0")
@@ -181,6 +196,15 @@ class MainWindow(Adw.ApplicationWindow):
         self.vpn_badge = Gtk.Label(label="Checking...")
         self.vpn_badge.add_css_class("badge-vpn-inactive")
         header.pack_end(self.vpn_badge)
+
+        # Primary menu (Quit option)
+        menu = Gio.Menu()
+        menu.append("Quit NetSplit", "app.quit")
+        menu_btn = Gtk.MenuButton()
+        menu_btn.set_icon_name("open-menu-symbolic")
+        menu_btn.set_menu_model(menu)
+        menu_btn.set_tooltip_text("Main Menu")
+        header.pack_end(menu_btn)
 
         main_box.append(header)
 
@@ -608,6 +632,36 @@ class MainWindow(Adw.ApplicationWindow):
 
         box.append(appearance_group)
 
+        # System Tray & Background Resident Settings Group
+        tray_group = Adw.PreferencesGroup(title="System Tray and Background Resident Mode")
+
+        self.tray_enable_row = Adw.SwitchRow(title="System Tray Integration")
+        self.tray_enable_row.set_subtitle("Show status icon and live speeds in desktop notification area")
+        self.tray_enable_row.set_active(self.collector.db.get_tray_enabled())
+        self.tray_enable_row.connect("notify::active", self._on_tray_enabled_changed)
+        tray_group.add(self.tray_enable_row)
+
+        self.min_to_tray_row = Adw.SwitchRow(title="Minimize to Tray on Close")
+        self.min_to_tray_row.set_subtitle("Closing window keeps NetSplit tracking 24/7 in the background")
+        self.min_to_tray_row.set_active(self.collector.db.get_minimize_to_tray())
+        self.min_to_tray_row.connect("notify::active", self._on_min_to_tray_changed)
+        tray_group.add(self.min_to_tray_row)
+
+        self.start_min_row = Adw.SwitchRow(title="Launch Minimized to Tray")
+        self.start_min_row.set_subtitle("Start NetSplit silently in the background on launch")
+        self.start_min_row.set_active(self.collector.db.get_start_minimized())
+        self.start_min_row.connect("notify::active", self._on_start_min_changed)
+        tray_group.add(self.start_min_row)
+
+        if is_autostart_supported():
+            self.autostart_row = Adw.SwitchRow(title="Launch on System Startup")
+            self.autostart_row.set_subtitle("Automatically start NetSplit in background when logging in")
+            self.autostart_row.set_active(is_autostart_enabled())
+            self.autostart_row.connect("notify::active", self._on_autostart_changed)
+            tray_group.add(self.autostart_row)
+
+        box.append(tray_group)
+
         # Traffic Accounting & Proxy Settings Group
         proxy_settings_group = Adw.PreferencesGroup(title="VPN and Proxy Compatibility")
 
@@ -681,6 +735,23 @@ class MainWindow(Adw.ApplicationWindow):
         clamp.set_child(box)
         scroller.set_child(clamp)
         return scroller
+
+    def _on_tray_enabled_changed(self, row, param):
+        enabled = row.get_active()
+        self.collector.db.set_tray_enabled(enabled)
+        if enabled:
+            self.app.start_tray()
+        else:
+            self.app.stop_tray()
+
+    def _on_min_to_tray_changed(self, row, param):
+        self.collector.db.set_minimize_to_tray(row.get_active())
+
+    def _on_start_min_changed(self, row, param):
+        self.collector.db.set_start_minimized(row.get_active())
+
+    def _on_autostart_changed(self, row, param):
+        set_autostart(row.get_active())
 
     def _on_custom_iface_changed(self, row):
         text = row.get_text().strip()
@@ -830,6 +901,14 @@ class MainWindow(Adw.ApplicationWindow):
         direct_pct = 100 - vpn_pct
         self.split_pct_lbl.set_label(f"{direct_pct}% Direct   |   {vpn_pct}% VPN")
 
+        # Update system tray tooltip & stats
+        if hasattr(self.app, "update_tray"):
+            self.app.update_tray(
+                speeds["normal_down_str"],
+                speeds["vpn_down_str"],
+                bool(vpn.get("tun_active", False))
+            )
+
         # Usage Breakdown
         self.val_today_normal.set_label(today["normal_total_str"])
         self.val_today_vpn.set_label(today["vpn_total_str"])
@@ -906,17 +985,77 @@ class MainWindow(Adw.ApplicationWindow):
 
 
 class NetworkMonitorApp(Adw.Application):
-    def __init__(self, collector: NetworkCollector):
+    def __init__(self, collector: NetworkCollector, start_minimized: bool = False):
         super().__init__(application_id="io.github.networkmonitor.app")
         self.collector = collector
+        self.start_minimized = start_minimized or self.collector.db.get_start_minimized()
+        self.main_window = None
+        self.tray = None
+        self._is_holding = False
+
+    def do_startup(self):
+        Adw.Application.do_startup(self)
+
+        # Register Quit action for app menu and shortcuts
+        quit_action = Gio.SimpleAction.new("quit", None)
+        quit_action.connect("activate", lambda *_: self.quit_application())
+        self.add_action(quit_action)
+
+        # Initialize System Tray Controller
+        self.tray = create_tray_controller(
+            on_activate=self._on_tray_activate,
+            on_quit=self.quit_application
+        )
+        if self.collector.db.get_tray_enabled():
+            self.tray.start()
+
+        # Hold the application so hiding the window keeps the process running
+        if not self._is_holding:
+            self.hold()
+            self._is_holding = True
 
     def do_activate(self):
-        win = self.props.active_window
-        if not win:
-            win = MainWindow(self, self.collector)
-        win.present()
+        if not self.main_window:
+            self.main_window = MainWindow(self, self.collector)
+
+        if self.start_minimized:
+            # Only start minimized once on initial activation
+            self.start_minimized = False
+            self.main_window.set_visible(False)
+        else:
+            self.main_window.set_visible(True)
+            self.main_window.present()
+
+    def _on_tray_activate(self):
+        if self.main_window:
+            self.main_window.set_visible(True)
+            self.main_window.present()
+
+    def start_tray(self):
+        if self.tray and not self.tray.is_running:
+            self.tray.start()
+
+    def stop_tray(self):
+        if self.tray and self.tray.is_running:
+            self.tray.stop()
+
+    def update_tray(self, normal_str: str, vpn_str: str, is_vpn: bool):
+        if self.tray and self.tray.is_running:
+            self.tray.update_stats(normal_str, vpn_str, is_vpn)
+
+    def quit_application(self):
+        if self.tray:
+            self.tray.stop()
+        if self.collector:
+            self.collector.stop()
+        if self._is_holding:
+            self.release()
+            self._is_holding = False
+        self.quit()
 
 
-def run_gui(collector: NetworkCollector):
-    app = NetworkMonitorApp(collector)
-    return app.run(sys.argv)
+def run_gui(collector: NetworkCollector, start_minimized: bool = False):
+    app = NetworkMonitorApp(collector, start_minimized=start_minimized)
+    # Strip custom CLI flags before passing to GTK argument parser
+    gtk_args = [arg for arg in sys.argv if arg not in ("--minimized", "--gnome", "--desktop", "--cli", "--web")]
+    return app.run(gtk_args)

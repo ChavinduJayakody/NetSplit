@@ -41,6 +41,10 @@ def main():
         "--host", type=str, default="127.0.0.1",
         help="Host address to bind to (default: 127.0.0.1)"
     )
+    parser.add_argument(
+        "--minimized", action="store_true", default=False,
+        help="Launch minimized into the background / system tray"
+    )
 
     args = parser.parse_args()
 
@@ -65,10 +69,10 @@ def main():
             if is_windows:
                 print("[!] GNOME Libadwaita is not supported on Windows. Launching Desktop App window...")
                 from gui.desktop import run_desktop_app
-                run_desktop_app(collector, host=args.host, port=args.port)
+                run_desktop_app(collector, host=args.host, port=args.port, start_minimized=args.minimized)
             else:
                 from gui.app import run_gui
-                run_gui(collector)
+                run_gui(collector, start_minimized=args.minimized)
         else:
             # Default behavior
             # On Linux: If GNOME Libadwaita is available, default to native GNOME app unless --desktop is given
@@ -79,7 +83,7 @@ def main():
                 run_cli(collector)
             elif is_windows or args.desktop:
                 from gui.desktop import run_desktop_app
-                run_desktop_app(collector, host=args.host, port=args.port)
+                run_desktop_app(collector, host=args.host, port=args.port, start_minimized=args.minimized)
             else:
                 # Linux: check if GNOME / Adw is preferred or fallback to desktop window
                 try:
@@ -87,10 +91,10 @@ def main():
                     gi.require_version('Gtk', '4.0')
                     gi.require_version('Adw', '1')
                     from gui.app import run_gui
-                    run_gui(collector)
+                    run_gui(collector, start_minimized=args.minimized)
                 except Exception:
                     from gui.desktop import run_desktop_app
-                    run_desktop_app(collector, host=args.host, port=args.port)
+                    run_desktop_app(collector, host=args.host, port=args.port, start_minimized=args.minimized)
 
     except KeyboardInterrupt:
         print("\n[+] Exiting NetworkMonitor...")
