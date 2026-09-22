@@ -1,37 +1,28 @@
 """
 NetSplit - Modern Native GNOME Desktop Application.
 Features real-time speed meters, live Cairo waveform graph, Direct vs Throne VPN traffic split,
-Wi-Fi signal diagnostics, and Throne per-app statistics.
+Wi-Fi signal diagnostics, Throne per-app statistics, and full Settings customization (Dark/Light/System theme).
 """
 
 import sys
+import os
 import math
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw, GLib, Gdk
+from gi.repository import Gtk, Adw, GLib, Gio
 import cairo
 
 from core.collector import NetworkCollector, format_bytes, format_speed
 
 
 CSS_STYLES = """
-/* Modern Dark Glass Aesthetic */
-window.background {
-    background: radial-gradient(circle at 50% 0%, #171d2b 0%, #0d1117 75%);
-}
-
 .metric-card {
-    background-color: rgba(22, 27, 34, 0.7);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background-color: alpha(@window_fg_color, 0.05);
+    border: 1px solid alpha(@borders, 0.5);
     border-radius: 16px;
     padding: 18px 20px;
     margin: 4px;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-}
-
-.metric-card:hover {
-    border-color: rgba(255, 255, 255, 0.16);
 }
 
 .card-title {
@@ -39,7 +30,7 @@ window.background {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
-    color: #8b949e;
+    color: alpha(@window_fg_color, 0.65);
 }
 
 .speed-value-normal {
@@ -68,12 +59,12 @@ window.background {
 
 .speed-sub {
     font-size: 9.5pt;
-    color: #8b949e;
+    color: alpha(@window_fg_color, 0.6);
     font-family: 'JetBrains Mono', monospace;
 }
 
 .badge-vpn-active {
-    background: rgba(38, 162, 105, 0.25);
+    background: rgba(38, 162, 105, 0.22);
     color: #34d399;
     border: 1px solid rgba(52, 211, 153, 0.4);
     border-radius: 9999px;
@@ -83,9 +74,9 @@ window.background {
 }
 
 .badge-vpn-inactive {
-    background: rgba(139, 148, 158, 0.15);
-    color: #8b949e;
-    border: 1px solid rgba(139, 148, 158, 0.25);
+    background: alpha(@window_fg_color, 0.08);
+    color: alpha(@window_fg_color, 0.7);
+    border: 1px solid alpha(@borders, 0.4);
     border-radius: 9999px;
     padding: 4px 14px;
     font-size: 9pt;
@@ -93,8 +84,8 @@ window.background {
 }
 
 .status-pill {
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: alpha(@window_fg_color, 0.04);
+    border: 1px solid alpha(@borders, 0.4);
     border-radius: 12px;
     padding: 8px 14px;
     font-size: 9.5pt;
@@ -103,12 +94,11 @@ window.background {
 .status-pill-val {
     font-weight: 700;
     font-family: 'JetBrains Mono', monospace;
-    color: #f0f6fc;
 }
 
 .info-label {
     font-size: 10pt;
-    color: #8b949e;
+    color: alpha(@window_fg_color, 0.65);
 }
 
 .info-val {
@@ -118,8 +108,8 @@ window.background {
 }
 
 .graph-card {
-    background-color: rgba(15, 23, 42, 0.75);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background-color: alpha(@window_fg_color, 0.04);
+    border: 1px solid alpha(@borders, 0.5);
     border-radius: 16px;
     padding: 14px 16px;
 }
@@ -144,11 +134,39 @@ class MainWindow(Adw.ApplicationWindow):
 
         self._build_ui()
 
+        # Apply persisted theme
+        self._load_saved_theme()
+
         # Immediate first update
         self._on_tick()
 
         # Refresh timer every 1000ms
         GLib.timeout_add(1000, self._on_tick)
+
+    def _load_saved_theme(self):
+        saved_theme = self.collector.db.get_setting("theme", "0")
+        try:
+            idx = int(saved_theme)
+        except ValueError:
+            idx = 0
+
+        self.theme_row.set_selected(idx)
+        self._apply_theme(idx)
+
+    def _apply_theme(self, idx: int):
+        sm = Adw.StyleManager.get_default()
+        if idx == 1:
+            sm.set_color_scheme(Adw.ColorScheme.FORCE_DARK)
+        elif idx == 2:
+            sm.set_color_scheme(Adw.ColorScheme.FORCE_LIGHT)
+        else:
+            sm.set_color_scheme(Adw.ColorScheme.DEFAULT)
+
+    def _on_theme_changed(self, row, param):
+        selected = row.get_selected()
+        self._apply_theme(selected)
+        self.collector.db.set_setting("theme", str(selected))
+        self.graph_area.queue_draw()
 
     def _build_ui(self):
         main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)
@@ -196,6 +214,10 @@ class MainWindow(Adw.ApplicationWindow):
         # 4. History Page
         self.history_page = self._build_history_page()
         self.view_stack.add_titled_with_icon(self.history_page, "history", "History", "document-open-recent-symbolic")
+
+        # 5. Settings Page
+        self.settings_page = self._build_settings_page()
+        self.view_stack.add_titled_with_icon(self.settings_page, "settings", "Settings", "preferences-system-symbolic")
 
         main_box.append(self.view_stack)
 
@@ -352,7 +374,7 @@ class MainWindow(Adw.ApplicationWindow):
         split_header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         split_title = Gtk.Label(label="TRAFFIC SPLIT RATIO", halign=Gtk.Align.START)
         split_title.add_css_class("card-title")
-        self.split_pct_lbl = Gtk.Label(label="100% Direct  |  0% VPN", halign=Gtk.Align.END, hexpand=True)
+        self.split_pct_lbl = Gtk.Label(label="100% Direct   |   0% VPN", halign=Gtk.Align.END, hexpand=True)
         self.split_pct_lbl.add_css_class("info-label")
         split_header.append(split_title)
         split_header.append(self.split_pct_lbl)
@@ -547,9 +569,108 @@ class MainWindow(Adw.ApplicationWindow):
         scroller.set_child(clamp)
         return scroller
 
+    # --- Page 5: Settings ---
+    def _build_settings_page(self) -> Gtk.Widget:
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_vexpand(True)
+        scroller.set_hexpand(True)
+
+        clamp = Adw.Clamp(maximum_size=820)
+        clamp.set_vexpand(True)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
+        box.set_margin_start(16)
+        box.set_margin_end(16)
+        box.set_margin_top(12)
+        box.set_margin_bottom(24)
+
+        # Appearance Settings Group
+        appearance_group = Adw.PreferencesGroup(title="Appearance & Theme")
+
+        self.theme_row = Adw.ComboRow(title="Theme")
+        self.theme_row.set_subtitle("Switch between dark, light, or follow system default")
+        model = Gtk.StringList.new(["System Default", "Dark Theme", "Light Theme"])
+        self.theme_row.set_model(model)
+        self.theme_row.connect("notify::selected", self._on_theme_changed)
+        appearance_group.add(self.theme_row)
+
+        box.append(appearance_group)
+
+        # Traffic Accounting Settings Group
+        traffic_group = Adw.PreferencesGroup(title="Traffic Accounting Logic")
+
+        acct_row = Adw.ActionRow(title="Exclusive VPN Mode")
+        acct_row.set_subtitle("When Throne VPN is connected, Direct Wi-Fi reads 0 B/s and all traffic counts as VPN")
+        active_badge = Gtk.Label(label="ACTIVE")
+        active_badge.add_css_class("badge-vpn-active")
+        acct_row.add_suffix(active_badge)
+        traffic_group.add(acct_row)
+
+        box.append(traffic_group)
+
+        # Data Management Group
+        data_group = Adw.PreferencesGroup(title="Data & History Management")
+
+        reset_today_row = Adw.ActionRow(title="Reset Today's Usage")
+        reset_today_row.set_subtitle("Zero out accumulated bytes for today and current session")
+        btn_reset_today = Gtk.Button(label="Reset Today", valign=Gtk.Align.CENTER)
+        btn_reset_today.add_css_class("suggested-action")
+        btn_reset_today.connect("clicked", self._on_reset_today_clicked)
+        reset_today_row.add_suffix(btn_reset_today)
+        data_group.add(reset_today_row)
+
+        clear_all_row = Adw.ActionRow(title="Clear All History")
+        clear_all_row.set_subtitle("Permanently erase all historical daily and hourly database records")
+        btn_clear_all = Gtk.Button(label="Clear All", valign=Gtk.Align.CENTER)
+        btn_clear_all.add_css_class("destructive-action")
+        btn_clear_all.connect("clicked", self._on_clear_all_clicked)
+        clear_all_row.add_suffix(btn_clear_all)
+        data_group.add(clear_all_row)
+
+        db_loc_row = Adw.ActionRow(title="Local Database Path")
+        db_path = self.collector.db.db_path
+        db_loc_row.set_subtitle(db_path)
+        data_group.add(db_loc_row)
+
+        box.append(data_group)
+
+        # About NetSplit Group
+        about_group = Adw.PreferencesGroup(title="About NetSplit")
+
+        ver_row = Adw.ActionRow(title="NetSplit Version")
+        ver_lbl = Gtk.Label(label="1.1.0", halign=Gtk.Align.END)
+        ver_lbl.add_css_class("info-val")
+        ver_row.add_suffix(ver_lbl)
+        about_group.add(ver_row)
+
+        repo_row = Adw.ActionRow(title="GitHub Repository")
+        repo_row.set_subtitle("https://github.com/ChavinduJayakody/NetSplit")
+        btn_open_repo = Gtk.Button(label="Open", valign=Gtk.Align.CENTER)
+        btn_open_repo.connect("clicked", lambda _: Gio.AppInfo.launch_default_for_uri("https://github.com/ChavinduJayakody/NetSplit", None))
+        repo_row.add_suffix(btn_open_repo)
+        about_group.add(repo_row)
+
+        box.append(about_group)
+
+        clamp.set_child(box)
+        scroller.set_child(clamp)
+        return scroller
+
+    def _on_reset_today_clicked(self, _):
+        self.collector.reset_today()
+        self._on_tick()
+
+    def _on_clear_all_clicked(self, _):
+        self.collector.clear_all_history()
+        self._on_tick()
+
     # --- Cairo Waveform Drawing ---
     def _draw_speed_graph(self, area, cr, width, height):
         history = list(self.collector.speed_history)
+
+        is_dark = Adw.StyleManager.get_default().get_dark()
+        bg_r, bg_g, bg_b, bg_a = (0.04, 0.06, 0.1, 0.85) if is_dark else (0.94, 0.95, 0.98, 0.95)
+        grid_alpha = 0.06 if is_dark else 0.08
 
         # Background rounded rect
         radius = 8.0
@@ -559,12 +680,12 @@ class MainWindow(Adw.ApplicationWindow):
         cr.arc(radius, height - radius, radius, math.pi / 2, math.pi)
         cr.arc(radius, radius, radius, math.pi, 3 * math.pi / 2)
         cr.close_path()
-        cr.set_source_rgba(0.04, 0.06, 0.1, 0.9)
+        cr.set_source_rgba(bg_r, bg_g, bg_b, bg_a)
         cr.fill()
 
         # Subtle horizontal grid lines
         cr.set_line_width(0.7)
-        cr.set_source_rgba(1.0, 1.0, 1.0, 0.06)
+        cr.set_source_rgba(0.5, 0.5, 0.5, grid_alpha)
         for y_pct in [0.25, 0.5, 0.75]:
             y = height * y_pct
             cr.move_to(10, y)

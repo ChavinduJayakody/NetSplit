@@ -168,19 +168,32 @@ class NetworkCollector:
                 vpn_rx_delta = 0
                 vpn_tx_delta = 0
 
+            # Exclusive mode: When VPN is connected, 100% of traffic is counted as VPN, Direct Wi-Fi is 0.
             if vpn_active:
-                normal_rx_delta = max(0, raw_wifi_rx_delta - vpn_rx_delta)
-                normal_tx_delta = max(0, raw_wifi_tx_delta - vpn_tx_delta)
+                normal_rx_delta = 0
+                normal_tx_delta = 0
+                # Use raw physical traffic carrying the VPN tunnel
+                vpn_rx_delta = raw_wifi_rx_delta if raw_wifi_rx_delta > 0 else vpn_rx_delta
+                vpn_tx_delta = raw_wifi_tx_delta if raw_wifi_tx_delta > 0 else vpn_tx_delta
+
+                cur_tot_rx_spd = raw_wifi_rx_delta / dt
+                cur_tot_tx_spd = raw_wifi_tx_delta / dt
+                cur_vpn_rx_spd = cur_tot_rx_spd
+                cur_vpn_tx_spd = cur_tot_tx_spd
+                cur_norm_rx_spd = 0.0
+                cur_norm_tx_spd = 0.0
             else:
+                vpn_rx_delta = 0
+                vpn_tx_delta = 0
                 normal_rx_delta = raw_wifi_rx_delta
                 normal_tx_delta = raw_wifi_tx_delta
 
-            cur_tot_rx_spd = raw_wifi_rx_delta / dt
-            cur_tot_tx_spd = raw_wifi_tx_delta / dt
-            cur_vpn_rx_spd = vpn_rx_delta / dt
-            cur_vpn_tx_spd = vpn_tx_delta / dt
-            cur_norm_rx_spd = normal_rx_delta / dt
-            cur_norm_tx_spd = normal_tx_delta / dt
+                cur_tot_rx_spd = raw_wifi_rx_delta / dt
+                cur_tot_tx_spd = raw_wifi_tx_delta / dt
+                cur_vpn_rx_spd = 0.0
+                cur_vpn_tx_spd = 0.0
+                cur_norm_rx_spd = cur_tot_rx_spd
+                cur_norm_tx_spd = cur_tot_tx_spd
 
             self.session_normal_rx += normal_rx_delta
             self.session_normal_tx += normal_tx_delta
@@ -276,6 +289,23 @@ class NetworkCollector:
             "throne": throne_stats,
             "speed_history": history_list[-30:],
         }
+
+    def reset_session(self):
+        with self._lock:
+            self.session_normal_rx = 0
+            self.session_normal_tx = 0
+            self.session_vpn_rx = 0
+            self.session_vpn_tx = 0
+            self.session_total_rx = 0
+            self.session_total_tx = 0
+
+    def reset_today(self):
+        self.reset_session()
+        self.db.reset_today_stats()
+
+    def clear_all_history(self):
+        self.reset_session()
+        self.db.clear_all_stats()
 
     def stop(self):
         self._running = False

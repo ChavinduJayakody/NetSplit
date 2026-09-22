@@ -68,7 +68,57 @@ class StatsDatabase:
                     vpn_tx INTEGER DEFAULT 0
                 )
             """)
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS app_settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )
+            """)
             conn.commit()
+
+    def get_setting(self, key: str, default: str = None) -> str:
+        conn = self._get_connection()
+        try:
+            c = conn.cursor()
+            c.execute("SELECT value FROM app_settings WHERE key = ?", (key,))
+            row = c.fetchone()
+            if row:
+                return row["value"]
+            return default
+        finally:
+            conn.close()
+
+    def set_setting(self, key: str, value: str):
+        conn = self._get_connection()
+        try:
+            with conn:
+                c = conn.cursor()
+                c.execute("""
+                    INSERT INTO app_settings (key, value) VALUES (?, ?)
+                    ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """, (key, str(value)))
+        finally:
+            conn.close()
+
+    def reset_today_stats(self):
+        today_str = datetime.datetime.now().strftime("%Y-%m-%d")
+        conn = self._get_connection()
+        try:
+            with conn:
+                c = conn.cursor()
+                c.execute("DELETE FROM daily_stats WHERE date = ?", (today_str,))
+        finally:
+            conn.close()
+
+    def clear_all_stats(self):
+        conn = self._get_connection()
+        try:
+            with conn:
+                c = conn.cursor()
+                c.execute("DELETE FROM daily_stats")
+                c.execute("DELETE FROM hourly_stats")
+        finally:
+            conn.close()
 
     def record_traffic(self, normal_rx: int, normal_tx: int, vpn_rx: int, vpn_tx: int):
         """Record byte deltas for the current minute/hour and day."""

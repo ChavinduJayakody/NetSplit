@@ -47,6 +47,21 @@ class TestStatsDatabase(unittest.TestCase):
         hourly = self.db.get_hourly_history(24)
         self.assertGreaterEqual(len(hourly), 1)
 
+    def test_settings_persistence(self):
+        self.db.set_setting("theme", "1")
+        self.assertEqual(self.db.get_setting("theme"), "1")
+        self.db.set_setting("theme", "2")
+        self.assertEqual(self.db.get_setting("theme"), "2")
+
+    def test_reset_data(self):
+        self.db.record_traffic(100, 100, 200, 200)
+        today = self.db.get_today_stats()
+        self.assertGreater(today["total_rx"], 0)
+
+        self.db.reset_today_stats()
+        today_after = self.db.get_today_stats()
+        self.assertEqual(today_after["total_rx"], 0)
+
 
 class TestFormatting(unittest.TestCase):
     def test_format_bytes(self):
