@@ -147,11 +147,97 @@ jobs:
           path: release_assets/*
 
   # ============================================================================
-  # 3. Create Official GitHub Release
+  # 3. Build Arch Linux Package (.pkg.tar.zst)
+  # ============================================================================
+  build-arch:
+    name: Build Arch Linux (.pkg.tar.zst)
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Install Arch System Dependencies
+        run: |
+          pacman -Syu --noconfirm
+          pacman -S --noconfirm \
+            base-devel \
+            python \
+            python-psutil \
+            python-gobject \
+            python-cairo \
+            gtk4 \
+            libadwaita \
+            git \
+            sudo
+
+      - name: Create build user (makepkg cannot run as root)
+        run: |
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+
+      - name: Determine version tag
+        id: ver
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.version }}"
+          else
+            TAG="${{ github.ref_name }}"
+          fi
+          VER="${TAG#v}"
+          echo "ver=${VER}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Download source tarball & compute sha256
+        id: src
+        run: |
+          VER="${{ steps.ver.outputs.ver }}"
+          URL="https://github.com/ChavinduJayakody/NetSplit/archive/refs/tags/v${VER}.tar.gz"
+          curl -sL "$URL" -o "netsplit-${VER}.tar.gz"
+          SHA=$(sha256sum "netsplit-${VER}.tar.gz" | awk '{print $1}')
+          echo "Source SHA256: $SHA"
+          echo "sha256=${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare PKGBUILD workspace
+        run: |
+          VER="${{ steps.ver.outputs.ver }}"
+          SHA="${{ steps.src.outputs.sha256 }}"
+          mkdir -p /build
+          cp packaging/PKGBUILD /build/PKGBUILD
+          cp "netsplit-${VER}.tar.gz" "/build/netsplit-${VER}.tar.gz"
+          sed -i "s/^pkgver=.*/pkgver=${VER}/" /build/PKGBUILD
+          sed -i "s/^sha256sums=.*/sha256sums=('${SHA}')/" /build/PKGBUILD
+          chown -R builder:builder /build
+
+      - name: Build package with makepkg
+        run: |
+          cd /build
+          sudo -u builder makepkg -s --noconfirm --noprogressbar
+
+      - name: Collect & checksum package
+        run: |
+          mkdir -p release_assets
+          PKG=$(ls /build/*.pkg.tar.zst)
+          cp "$PKG" "release_assets/NetSplit-Linux-x86_64.pkg.tar.zst"
+          cd release_assets
+          sha256sum "NetSplit-Linux-x86_64.pkg.tar.zst" > "NetSplit-Linux-x86_64.pkg.tar.zst.sha256"
+          echo "Arch package SHA-256:"
+          cat "NetSplit-Linux-x86_64.pkg.tar.zst.sha256"
+
+      - name: Upload Arch Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-linux-pkg
+          path: release_assets/*
+
+  # ============================================================================
+  # 4. Create Official GitHub Release
   # ============================================================================
   publish-release:
     name: Publish GitHub Release
-    needs: [build-windows, build-linux]
+    needs: [build-windows, build-linux, build-arch]
     runs-on: ubuntu-latest
 
     steps:
@@ -168,6 +254,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: linux-x86_64-appimage
+          path: release_files
+
+      - name: Download Arch Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: arch-linux-pkg
           path: release_files
 
       - name: Generate Consolidated Checksums
@@ -196,7 +288,9 @@ jobs:
           files: |
             release_files/NetSplit-Windows-x64.exe
             release_files/NetSplit-Linux-x86_64.AppImage
+            release_files/NetSplit-Linux-x86_64.pkg.tar.zst
             release_files/SHA256SUMS.txt
           generate_release_notes: true
           draft: false
           prerelease: false
+

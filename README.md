@@ -34,16 +34,23 @@ Pre-compiled standalone binaries are automatically built and published with ever
 
 | Platform | Format | Download Link | Notes |
 |:---|:---|:---|:---|
-| **Linux (x86_64)** | **`.AppImage`** | [**Download Latest Linux AppImage**](https://github.com/ChavinduJayakody/NetSplit/releases/latest) | Works on Ubuntu, Arch, Fedora, Debian, Mint, CachyOS. Make executable with `chmod +x` and run! |
+| **Linux (x86_64)** | **`.AppImage`** | [**Download Latest Linux AppImage**](https://github.com/ChavinduJayakody/NetSplit/releases/latest) | Universal — works on Ubuntu, Fedora, Debian, Mint, CachyOS. `chmod +x` and run. |
+| **Arch Linux (x86_64)** | **`.pkg.tar.zst`** | [**Download Latest Arch Package**](https://github.com/ChavinduJayakody/NetSplit/releases/latest) | Native Arch/CachyOS/Manjaro package. Uses system GTK4 & Python. |
 | **Windows (x64)** | **`.exe`** | [**Download Latest Windows Standalone (.exe)**](https://github.com/ChavinduJayakody/NetSplit/releases/latest) | Single-file executable. Runs directly using built-in Microsoft Edge WebView2. |
 
 ### Running the AppImage on Linux
 ```bash
-# Make executable
 chmod +x NetSplit-Linux-x86_64.AppImage
-
-# Run NetSplit
 ./NetSplit-Linux-x86_64.AppImage
+```
+
+### Installing the Arch Package
+```bash
+# Install with pacman directly
+sudo pacman -U NetSplit-Linux-x86_64.pkg.tar.zst
+
+# Then launch
+netsplit
 ```
 
 ---
