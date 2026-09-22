@@ -16,6 +16,7 @@ import cairo
 from core.collector import NetworkCollector, format_bytes, format_speed
 from core.tray import create_tray_controller
 from core.autostart import is_autostart_supported, is_autostart_enabled, set_autostart
+from core.security import mask_ip
 
 
 CSS_STYLES = """
@@ -134,6 +135,11 @@ class MainWindow(Adw.ApplicationWindow):
             css_provider,
             Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
         )
+
+        # IP Privacy reveal states
+        self.reveal_local_ip = False
+        self.reveal_public_ip = False
+        self.reveal_header_ip = False
 
         self._build_ui()
 
@@ -285,7 +291,7 @@ class MainWindow(Adw.ApplicationWindow):
         p2.append(self.pill_ping_lbl)
         strip.append(p2)
 
-        # Pill 3: Egress IP Quick
+        # Pill 3: Egress IP Quick (Clickable to reveal/mask)
         p3 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         p3.add_css_class("status-pill")
         dot3 = Gtk.Label(label="●")
@@ -294,6 +300,10 @@ class MainWindow(Adw.ApplicationWindow):
         self.pill_ip_lbl.add_css_class("status-pill-val")
         p3.append(dot3)
         p3.append(self.pill_ip_lbl)
+        p3.set_tooltip_text("Click to toggle IP mask / reveal")
+        click_pill = Gtk.GestureClick()
+        click_pill.connect("released", self._on_toggle_header_ip)
+        p3.add_controller(click_pill)
         strip.append(p3)
 
         box.append(strip)
@@ -508,13 +518,25 @@ class MainWindow(Adw.ApplicationWindow):
         self.row_local_ip = Adw.ActionRow(title="Local IP Address")
         self.val_local_ip = Gtk.Label(label="127.0.0.1", halign=Gtk.Align.END)
         self.val_local_ip.add_css_class("info-val")
+        self.btn_reveal_local = Gtk.Button(valign=Gtk.Align.CENTER)
+        self.btn_reveal_local.set_icon_name("view-reveal-symbolic")
+        self.btn_reveal_local.add_css_class("flat")
+        self.btn_reveal_local.set_tooltip_text("Reveal or mask local IP")
+        self.btn_reveal_local.connect("clicked", self._on_toggle_reveal_local)
         self.row_local_ip.add_suffix(self.val_local_ip)
+        self.row_local_ip.add_suffix(self.btn_reveal_local)
         diag_group.add(self.row_local_ip)
 
         self.row_public_ip = Adw.ActionRow(title="Public Egress IP")
         self.val_public_ip = Gtk.Label(label="Checking...", halign=Gtk.Align.END)
         self.val_public_ip.add_css_class("info-val")
+        self.btn_reveal_public = Gtk.Button(valign=Gtk.Align.CENTER)
+        self.btn_reveal_public.set_icon_name("view-reveal-symbolic")
+        self.btn_reveal_public.add_css_class("flat")
+        self.btn_reveal_public.set_tooltip_text("Reveal or mask public IP")
+        self.btn_reveal_public.connect("clicked", self._on_toggle_reveal_public)
         self.row_public_ip.add_suffix(self.val_public_ip)
+        self.row_public_ip.add_suffix(self.btn_reveal_public)
         diag_group.add(self.row_public_ip)
 
         box.append(diag_group)
@@ -607,48 +629,58 @@ class MainWindow(Adw.ApplicationWindow):
 
     # --- Page 5: Settings ---
     def _build_settings_page(self) -> Gtk.Widget:
-        scroller = Gtk.ScrolledWindow()
-        scroller.set_vexpand(True)
-        scroller.set_hexpand(True)
+        page = Adw.PreferencesPage()
 
-        clamp = Adw.Clamp(maximum_size=820)
-        clamp.set_vexpand(True)
+        # 1. Privacy & Security Group
+        privacy_group = Adw.PreferencesGroup(
+            title="Privacy and Security",
+            description="Control visibility of sensitive network identifiers"
+        )
+        self.mask_ip_row = Adw.SwitchRow(title="Mask IP Addresses (Privacy Mode)")
+        self.mask_ip_row.set_subtitle("Hide sensitive local and public IP addresses across all dashboard views")
+        self.mask_ip_row.add_prefix(Gtk.Image.new_from_icon_name("security-high-symbolic"))
+        self.mask_ip_row.set_active(self.collector.db.get_mask_ips())
+        self.mask_ip_row.connect("notify::active", self._on_mask_ips_changed)
+        privacy_group.add(self.mask_ip_row)
+        page.add(privacy_group)
 
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
-        box.set_margin_start(16)
-        box.set_margin_end(16)
-        box.set_margin_top(12)
-        box.set_margin_bottom(24)
-
-        # Appearance Settings Group
-        appearance_group = Adw.PreferencesGroup(title="Appearance and Theme")
-
-        self.theme_row = Adw.ComboRow(title="Theme")
+        # 2. Appearance & Theme Group
+        appearance_group = Adw.PreferencesGroup(
+            title="Appearance",
+            description="Application styling and color scheme preference"
+        )
+        self.theme_row = Adw.ComboRow(title="Application Theme")
         self.theme_row.set_subtitle("Switch between dark, light, or follow system default")
+        self.theme_row.add_prefix(Gtk.Image.new_from_icon_name("preferences-desktop-appearance-symbolic"))
         model = Gtk.StringList.new(["System Default", "Dark Theme", "Light Theme"])
         self.theme_row.set_model(model)
         self.theme_row.connect("notify::selected", self._on_theme_changed)
         appearance_group.add(self.theme_row)
+        page.add(appearance_group)
 
-        box.append(appearance_group)
-
-        # System Tray & Background Resident Settings Group
-        tray_group = Adw.PreferencesGroup(title="System Tray and Background Resident Mode")
+        # 3. Background & System Tray Group
+        tray_group = Adw.PreferencesGroup(
+            title="Background and System Tray",
+            description="Background monitoring and system panel integration"
+        )
 
         self.tray_enable_row = Adw.SwitchRow(title="System Tray Integration")
         self.tray_enable_row.set_subtitle("Show status icon and live speeds in desktop notification area")
+        self.tray_enable_row.add_prefix(Gtk.Image.new_from_icon_name("network-transmit-receive-symbolic"))
         self.tray_enable_row.set_active(self.collector.db.get_tray_enabled())
         self.tray_enable_row.connect("notify::active", self._on_tray_enabled_changed)
         tray_group.add(self.tray_enable_row)
 
         self.min_to_tray_row = Adw.SwitchRow(title="Minimize to Tray on Close")
         self.min_to_tray_row.set_subtitle("Closing window keeps NetSplit tracking 24/7 in the background")
+        self.min_to_tray_row.add_prefix(Gtk.Image.new_from_icon_name("window-minimize-symbolic"))
         self.min_to_tray_row.set_active(self.collector.db.get_minimize_to_tray())
         self.min_to_tray_row.connect("notify::active", self._on_min_to_tray_changed)
         tray_group.add(self.min_to_tray_row)
 
         self.start_min_row = Adw.SwitchRow(title="Launch Minimized to Tray")
         self.start_min_row.set_subtitle("Start NetSplit silently in the background on launch")
+        self.start_min_row.add_prefix(Gtk.Image.new_from_icon_name("view-conceal-symbolic"))
         self.start_min_row.set_active(self.collector.db.get_start_minimized())
         self.start_min_row.connect("notify::active", self._on_start_min_changed)
         tray_group.add(self.start_min_row)
@@ -656,24 +688,30 @@ class MainWindow(Adw.ApplicationWindow):
         if is_autostart_supported():
             self.autostart_row = Adw.SwitchRow(title="Launch on System Startup")
             self.autostart_row.set_subtitle("Automatically start NetSplit in background when logging in")
+            self.autostart_row.add_prefix(Gtk.Image.new_from_icon_name("system-run-symbolic"))
             self.autostart_row.set_active(is_autostart_enabled())
             self.autostart_row.connect("notify::active", self._on_autostart_changed)
             tray_group.add(self.autostart_row)
 
-        box.append(tray_group)
+        page.add(tray_group)
 
-        # Traffic Accounting & Proxy Settings Group
-        proxy_settings_group = Adw.PreferencesGroup(title="VPN and Proxy Compatibility")
+        # 4. VPN and Proxy Engine Group
+        proxy_settings_group = Adw.PreferencesGroup(
+            title="VPN and Proxy Compatibility",
+            description="Multi-protocol client detection and exclusive accounting rules"
+        )
 
         support_row = Adw.ActionRow(title="Supported Clients")
         support_row.set_subtitle("Throne • NetMod • Netch • NekoRay • v2rayA • Clash • Sing-Box • Xray • WireGuard • OpenVPN")
+        support_row.add_prefix(Gtk.Image.new_from_icon_name("network-vpn-symbolic"))
         auto_badge = Gtk.Label(label="AUTO-DETECT")
         auto_badge.add_css_class("badge-vpn-active")
         support_row.add_suffix(auto_badge)
         proxy_settings_group.add(support_row)
 
-        acct_row = Adw.ActionRow(title="Exclusive Mode")
+        acct_row = Adw.ActionRow(title="Exclusive Accounting Mode")
         acct_row.set_subtitle("When VPN is active, Direct Wi-Fi reads 0 B/s and all traffic counts as VPN")
+        acct_row.add_prefix(Gtk.Image.new_from_icon_name("security-high-symbolic"))
         active_badge = Gtk.Label(label="ENABLED")
         active_badge.add_css_class("badge-vpn-active")
         acct_row.add_suffix(active_badge)
@@ -681,18 +719,23 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Custom Interface Override Entry
         self.custom_iface_row = Adw.EntryRow(title="Custom Interface Override (Optional)")
+        self.custom_iface_row.add_prefix(Gtk.Image.new_from_icon_name("network-wired-symbolic"))
         saved_iface = self.collector.db.get_setting("custom_vpn_iface", "")
         self.custom_iface_row.set_text(saved_iface)
         self.custom_iface_row.connect("changed", self._on_custom_iface_changed)
         proxy_settings_group.add(self.custom_iface_row)
 
-        box.append(proxy_settings_group)
+        page.add(proxy_settings_group)
 
-        # Data Management Group
-        data_group = Adw.PreferencesGroup(title="Data and History Management")
+        # 5. Data & Storage Management Group
+        data_group = Adw.PreferencesGroup(
+            title="Data and History Management",
+            description="Local SQLite statistics storage and database maintenance"
+        )
 
         reset_today_row = Adw.ActionRow(title="Reset Today's Usage")
         reset_today_row.set_subtitle("Zero out accumulated bytes for today and current session")
+        reset_today_row.add_prefix(Gtk.Image.new_from_icon_name("document-revert-symbolic"))
         btn_reset_today = Gtk.Button(label="Reset Today", valign=Gtk.Align.CENTER)
         btn_reset_today.add_css_class("suggested-action")
         btn_reset_today.connect("clicked", self._on_reset_today_clicked)
@@ -701,6 +744,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         clear_all_row = Adw.ActionRow(title="Clear All History")
         clear_all_row.set_subtitle("Permanently erase all historical daily and hourly database records")
+        clear_all_row.add_prefix(Gtk.Image.new_from_icon_name("user-trash-symbolic"))
         btn_clear_all = Gtk.Button(label="Clear All", valign=Gtk.Align.CENTER)
         btn_clear_all.add_css_class("destructive-action")
         btn_clear_all.connect("clicked", self._on_clear_all_clicked)
@@ -708,33 +752,55 @@ class MainWindow(Adw.ApplicationWindow):
         data_group.add(clear_all_row)
 
         db_loc_row = Adw.ActionRow(title="Local Database Path")
+        db_loc_row.add_prefix(Gtk.Image.new_from_icon_name("drive-harddisk-symbolic"))
         db_path = self.collector.db.db_path
         db_loc_row.set_subtitle(db_path)
         data_group.add(db_loc_row)
 
-        box.append(data_group)
+        page.add(data_group)
 
-        # About NetSplit Group
+        # 6. About NetSplit Group
         about_group = Adw.PreferencesGroup(title="About NetSplit")
 
         ver_row = Adw.ActionRow(title="NetSplit Version")
-        ver_lbl = Gtk.Label(label="1.2.0 (Multi-Protocol Edition)", halign=Gtk.Align.END)
+        ver_row.add_prefix(Gtk.Image.new_from_icon_name("help-about-symbolic"))
+        ver_lbl = Gtk.Label(label="1.3.0 (Security & Privacy Edition)", halign=Gtk.Align.END)
         ver_lbl.add_css_class("info-val")
         ver_row.add_suffix(ver_lbl)
         about_group.add(ver_row)
 
         repo_row = Adw.ActionRow(title="GitHub Repository")
+        repo_row.add_prefix(Gtk.Image.new_from_icon_name("web-browser-symbolic"))
         repo_row.set_subtitle("https://github.com/ChavinduJayakody/NetSplit")
         btn_open_repo = Gtk.Button(label="Open", valign=Gtk.Align.CENTER)
         btn_open_repo.connect("clicked", lambda _: Gio.AppInfo.launch_default_for_uri("https://github.com/ChavinduJayakody/NetSplit", None))
         repo_row.add_suffix(btn_open_repo)
         about_group.add(repo_row)
 
-        box.append(about_group)
+        page.add(about_group)
 
-        clamp.set_child(box)
-        scroller.set_child(clamp)
-        return scroller
+        return page
+
+    def _on_mask_ips_changed(self, row, param):
+        enabled = row.get_active()
+        self.collector.db.set_mask_ips(enabled)
+        self._on_tick()
+
+    def _on_toggle_header_ip(self, *args):
+        self.reveal_header_ip = not self.reveal_header_ip
+        self._on_tick()
+
+    def _on_toggle_reveal_local(self, _):
+        self.reveal_local_ip = not self.reveal_local_ip
+        icon = "view-conceal-symbolic" if self.reveal_local_ip else "view-reveal-symbolic"
+        self.btn_reveal_local.set_icon_name(icon)
+        self._on_tick()
+
+    def _on_toggle_reveal_public(self, _):
+        self.reveal_public_ip = not self.reveal_public_ip
+        icon = "view-conceal-symbolic" if self.reveal_public_ip else "view-reveal-symbolic"
+        self.btn_reveal_public.set_icon_name(icon)
+        self._on_tick()
 
     def _on_tray_enabled_changed(self, row, param):
         enabled = row.get_active()
@@ -873,8 +939,10 @@ class MainWindow(Adw.ApplicationWindow):
         inet_p = f"{ping['internet_ping_ms']:.1f}ms" if ping.get('internet_ping_ms') is not None else "--"
         self.pill_ping_lbl.set_label(f"Ping: {inet_p}")
 
-        pub_ip = ping.get("public_ip") or "Checking..."
-        self.pill_ip_lbl.set_label(f"IP: {pub_ip}")
+        raw_pub_ip = ping.get("public_ip") or "Checking..."
+        mask_setting = self.collector.db.get_mask_ips()
+        header_pub_ip = raw_pub_ip if (not mask_setting or self.reveal_header_ip) else mask_ip(raw_pub_ip)
+        self.pill_ip_lbl.set_label(f"IP: {header_pub_ip}")
 
         # 3. Update Live Cards
         self.norm_down_lbl.set_label(speeds["normal_down_str"])
@@ -928,8 +996,11 @@ class MainWindow(Adw.ApplicationWindow):
         inet_lat = f"{ping.get('internet_ping_ms'):.2f} ms" if ping.get("internet_ping_ms") is not None else "--"
         self.val_ping_gw.set_label(gw_lat)
         self.val_ping_inet.set_label(inet_lat)
-        self.val_local_ip.set_label(wifi.get("local_ip") or "N/A")
-        self.val_public_ip.set_label(ping.get("public_ip") or "Checking...")
+        raw_local_ip = wifi.get("local_ip") or "N/A"
+        diag_local_ip = raw_local_ip if (not mask_setting or self.reveal_local_ip) else mask_ip(raw_local_ip)
+        diag_pub_ip = raw_pub_ip if (not mask_setting or self.reveal_public_ip) else mask_ip(raw_pub_ip)
+        self.val_local_ip.set_label(diag_local_ip)
+        self.val_public_ip.set_label(diag_pub_ip)
 
         # 5. VPN Status & Apps
         self.val_vpn_state.set_label(vpn.get("status_text", "N/A"))

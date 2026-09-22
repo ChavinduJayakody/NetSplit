@@ -12,6 +12,8 @@ import re
 import platform
 from typing import Dict, Any, Optional
 
+from core.security import validate_host, validate_ip
+
 
 class PingProbe:
     def __init__(self, target_dns: str = "1.1.1.1", gateway_ip: Optional[str] = None):
@@ -33,7 +35,7 @@ class PingProbe:
             self.gateway_ip = gw_ip
 
     def _ping_host(self, host: str, timeout_sec: int = 1) -> Optional[float]:
-        if not host:
+        if not host or not validate_host(host):
             return None
         try:
             if self.is_windows:
@@ -67,11 +69,15 @@ class PingProbe:
                     if 'cdn-cgi/trace' in url:
                         for line in data.splitlines():
                             if line.startswith('ip='):
-                                return line.split('=')[1].strip()
+                                cand = line.split('=')[1].strip()
+                                if validate_ip(cand):
+                                    return cand
                     else:
                         match = re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', data)
                         if match:
-                            return match.group(0)
+                            cand = match.group(0)
+                            if validate_ip(cand):
+                                return cand
             except Exception:
                 continue
         return None

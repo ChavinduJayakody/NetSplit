@@ -127,6 +127,12 @@ class StatsDatabase:
     def set_start_minimized(self, enabled: bool):
         self.set_bool_setting("start_minimized", enabled)
 
+    def get_mask_ips(self) -> bool:
+        return self.get_bool_setting("mask_ips", default=True)
+
+    def set_mask_ips(self, enabled: bool):
+        self.set_bool_setting("mask_ips", enabled)
+
     def reset_today_stats(self):
         today_str = datetime.datetime.now().strftime("%Y-%m-%d")
         conn = self._get_connection()

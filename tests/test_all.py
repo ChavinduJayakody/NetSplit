@@ -170,5 +170,70 @@ class TestAutostartAndTray(unittest.TestCase):
         self.assertFalse(tray.is_running)
 
 
+class TestSecurityAndPrivacy(unittest.TestCase):
+    def test_mask_ip(self):
+        from core.security import mask_ip
+        # IPv4
+        self.assertEqual(mask_ip("192.168.1.100"), "192.168.***.***")
+        self.assertEqual(mask_ip("112.134.72.19"), "112.134.***.***")
+        # Sentinels
+        self.assertEqual(mask_ip("Checking..."), "Checking...")
+        self.assertEqual(mask_ip("N/A"), "N/A")
+        self.assertEqual(mask_ip("Disconnected"), "Disconnected")
+        self.assertEqual(mask_ip("--"), "--")
+        # IPv6
+        v6_masked = mask_ip("2402:4000:21c0:1234:5678:9abc:def0:1234")
+        self.assertTrue(v6_masked.startswith("2402:4000:****"))
+
+    def test_validate_host(self):
+        from core.security import validate_host
+        self.assertTrue(validate_host("1.1.1.1"))
+        self.assertTrue(validate_host("google.com"))
+        self.assertTrue(validate_host("192.168.1.1"))
+        # Injections & dangerous values
+        self.assertFalse(validate_host("-c 1"))
+        self.assertFalse(validate_host("; cat /etc/passwd"))
+        self.assertFalse(validate_host("host & reboot"))
+        self.assertFalse(validate_host(""))
+        self.assertFalse(validate_host(None))
+
+    def test_validate_ip(self):
+        from core.security import validate_ip
+        self.assertTrue(validate_ip("127.0.0.1"))
+        self.assertTrue(validate_ip("1.1.1.1"))
+        self.assertTrue(validate_ip("::1"))
+        self.assertFalse(validate_ip("invalid_ip"))
+        self.assertFalse(validate_ip("256.256.256.256"))
+        self.assertFalse(validate_ip("1.1.1.1; rm"))
+
+    def test_sanitize_static_path(self):
+        import tempfile
+        from core.security import sanitize_static_path
+        with tempfile.TemporaryDirectory() as td:
+            test_file = os.path.join(td, "app.js")
+            with open(test_file, "w") as f:
+                f.write("console.log(1);")
+
+            # Normal path
+            res = sanitize_static_path(td, "app.js")
+            self.assertEqual(res, test_file)
+
+            # Traversal attempts
+            self.assertIsNone(sanitize_static_path(td, "../../../etc/passwd"))
+            self.assertIsNone(sanitize_static_path(td, "..\\..\\windows\\system32"))
+
+    def test_db_mask_setting(self):
+        import tempfile
+        from core.database import StatsDatabase
+        with tempfile.TemporaryDirectory() as td:
+            db = StatsDatabase(os.path.join(td, "test_mask.db"))
+            # Default is True
+            self.assertTrue(db.get_mask_ips())
+            db.set_mask_ips(False)
+            self.assertFalse(db.get_mask_ips())
+            db.set_mask_ips(True)
+            self.assertTrue(db.get_mask_ips())
+
+
 if __name__ == "__main__":
     unittest.main()
