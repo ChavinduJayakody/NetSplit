@@ -3,9 +3,12 @@ Unit tests for NetworkMonitor core modules.
 """
 
 import os
+import sys
 import tempfile
 import unittest
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.database import StatsDatabase
 from core.throne import ThroneMonitor
