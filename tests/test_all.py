@@ -234,6 +234,18 @@ class TestSecurityAndPrivacy(unittest.TestCase):
             db.set_mask_ips(True)
             self.assertTrue(db.get_mask_ips())
 
+    def test_db_exclusive_mode_setting(self):
+        import tempfile
+        from core.database import StatsDatabase
+        with tempfile.TemporaryDirectory() as td:
+            db = StatsDatabase(os.path.join(td, "test_excl.db"))
+            # Default is True
+            self.assertTrue(db.get_exclusive_mode())
+            db.set_exclusive_mode(False)
+            self.assertFalse(db.get_exclusive_mode())
+            db.set_exclusive_mode(True)
+            self.assertTrue(db.get_exclusive_mode())
+
 
 if __name__ == "__main__":
     unittest.main()

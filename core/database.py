@@ -133,6 +133,12 @@ class StatsDatabase:
     def set_mask_ips(self, enabled: bool):
         self.set_bool_setting("mask_ips", enabled)
 
+    def get_exclusive_mode(self) -> bool:
+        return self.get_bool_setting("exclusive_mode", default=True)
+
+    def set_exclusive_mode(self, enabled: bool):
+        self.set_bool_setting("exclusive_mode", enabled)
+
     def reset_today_stats(self):
         today_str = datetime.datetime.now().strftime("%Y-%m-%d")
         conn = self._get_connection()

@@ -10,7 +10,7 @@ import math
 import gi
 gi.require_version('Gtk', '4.0')
 gi.require_version('Adw', '1')
-from gi.repository import Gtk, Adw, GLib, Gio
+from gi.repository import Gtk, Gdk, Adw, GLib, Gio
 import cairo
 
 from core.collector import NetworkCollector, format_bytes, format_speed
@@ -67,13 +67,13 @@ CSS_STYLES = """
 }
 
 .badge-vpn-active {
-    background: rgba(38, 162, 105, 0.22);
+    background: rgba(38, 162, 105, 0.2);
     color: #34d399;
-    border: 1px solid rgba(52, 211, 153, 0.4);
+    border: 1px solid rgba(52, 211, 153, 0.35);
     border-radius: 9999px;
-    padding: 4px 14px;
-    font-size: 9pt;
-    font-weight: 800;
+    padding: 3px 10px;
+    font-size: 8.5pt;
+    font-weight: 700;
 }
 
 .badge-vpn-inactive {
@@ -81,8 +81,8 @@ CSS_STYLES = """
     color: alpha(@window_fg_color, 0.7);
     border: 1px solid alpha(@borders, 0.4);
     border-radius: 9999px;
-    padding: 4px 14px;
-    font-size: 9pt;
+    padding: 3px 10px;
+    font-size: 8.5pt;
     font-weight: 600;
 }
 
@@ -125,6 +125,13 @@ class MainWindow(Adw.ApplicationWindow):
         self.app = app
         self.collector = collector
         self.set_default_size(880, 720)
+
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        self.assets_dir = os.path.join(project_root, "assets")
+        display = Gdk.Display.get_default()
+        if display:
+            icon_theme = Gtk.IconTheme.get_for_display(display)
+            icon_theme.add_search_path(self.assets_dir)
         self.set_icon_name("netsplit")
 
         # Apply CSS
@@ -200,6 +207,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Status badge in header
         self.vpn_badge = Gtk.Label(label="Checking...")
+        self.vpn_badge.set_valign(Gtk.Align.CENTER)
         self.vpn_badge.add_css_class("badge-vpn-inactive")
         header.pack_end(self.vpn_badge)
 
@@ -317,9 +325,7 @@ class MainWindow(Adw.ApplicationWindow):
         h1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         t1 = Gtk.Label(label="Direct Wi-Fi", halign=Gtk.Align.START)
         t1.add_css_class("card-title")
-        ico1 = Gtk.Label(label="📶", halign=Gtk.Align.END, hexpand=True)
         h1.append(t1)
-        h1.append(ico1)
         self.norm_down_lbl = Gtk.Label(label="0.0 KB/s", halign=Gtk.Align.START)
         self.norm_down_lbl.add_css_class("speed-value-normal")
         self.norm_sub_lbl = Gtk.Label(label="↓ 0.0 KB/s   ↑ 0.0 KB/s", halign=Gtk.Align.START)
@@ -338,9 +344,7 @@ class MainWindow(Adw.ApplicationWindow):
         h2 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         self.card_vpn_title = Gtk.Label(label="VPN / Proxy", halign=Gtk.Align.START)
         self.card_vpn_title.add_css_class("card-title")
-        ico2 = Gtk.Label(label="🛡️", halign=Gtk.Align.END, hexpand=True)
         h2.append(self.card_vpn_title)
-        h2.append(ico2)
         self.vpn_down_lbl = Gtk.Label(label="0.0 KB/s", halign=Gtk.Align.START)
         self.vpn_down_lbl.add_css_class("speed-value-vpn")
         self.vpn_sub_lbl = Gtk.Label(label="↓ 0.0 KB/s   ↑ 0.0 KB/s", halign=Gtk.Align.START)
@@ -359,9 +363,7 @@ class MainWindow(Adw.ApplicationWindow):
         h3 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
         t3 = Gtk.Label(label="Total Physical", halign=Gtk.Align.START)
         t3.add_css_class("card-title")
-        ico3 = Gtk.Label(label="⚡", halign=Gtk.Align.END, hexpand=True)
         h3.append(t3)
-        h3.append(ico3)
         self.tot_down_lbl = Gtk.Label(label="0.0 KB/s", halign=Gtk.Align.START)
         self.tot_down_lbl.add_css_class("speed-value-total")
         self.tot_sub_lbl = Gtk.Label(label="↓ 0.0 KB/s   ↑ 0.0 KB/s", halign=Gtk.Align.START)
@@ -428,7 +430,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.row_today_normal.add_suffix(self.val_today_normal)
         usage_group.add(self.row_today_normal)
 
-        self.row_today_vpn = Adw.ActionRow(title="Today: Throne VPN")
+        self.row_today_vpn = Adw.ActionRow(title="Today: VPN / Proxy")
         self.val_today_vpn = Gtk.Label(label="0 B", halign=Gtk.Align.END)
         self.val_today_vpn.add_css_class("info-val")
         self.row_today_vpn.add_suffix(self.val_today_vpn)
@@ -595,8 +597,7 @@ class MainWindow(Adw.ApplicationWindow):
         box.append(vpn_group)
 
         self.app_group = Adw.PreferencesGroup(title="Applications Routed via Proxy / VPN")
-        self.app_rows_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        self.app_group.add(self.app_rows_container)
+        self.app_rows = []
         box.append(self.app_group)
 
         clamp.set_child(box)
@@ -619,8 +620,7 @@ class MainWindow(Adw.ApplicationWindow):
         box.set_margin_bottom(24)
 
         self.hist_group = Adw.PreferencesGroup(title="Daily Bandwidth History (Last 7 Days)")
-        self.hist_rows_container = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        self.hist_group.add(self.hist_rows_container)
+        self.hist_rows = []
         box.append(self.hist_group)
 
         clamp.set_child(box)
@@ -638,7 +638,6 @@ class MainWindow(Adw.ApplicationWindow):
         )
         self.mask_ip_row = Adw.SwitchRow(title="Mask IP Addresses (Privacy Mode)")
         self.mask_ip_row.set_subtitle("Hide sensitive local and public IP addresses across all dashboard views")
-        self.mask_ip_row.add_prefix(Gtk.Image.new_from_icon_name("security-high-symbolic"))
         self.mask_ip_row.set_active(self.collector.db.get_mask_ips())
         self.mask_ip_row.connect("notify::active", self._on_mask_ips_changed)
         privacy_group.add(self.mask_ip_row)
@@ -651,7 +650,6 @@ class MainWindow(Adw.ApplicationWindow):
         )
         self.theme_row = Adw.ComboRow(title="Application Theme")
         self.theme_row.set_subtitle("Switch between dark, light, or follow system default")
-        self.theme_row.add_prefix(Gtk.Image.new_from_icon_name("preferences-desktop-appearance-symbolic"))
         model = Gtk.StringList.new(["System Default", "Dark Theme", "Light Theme"])
         self.theme_row.set_model(model)
         self.theme_row.connect("notify::selected", self._on_theme_changed)
@@ -666,21 +664,18 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.tray_enable_row = Adw.SwitchRow(title="System Tray Integration")
         self.tray_enable_row.set_subtitle("Show status icon and live speeds in desktop notification area")
-        self.tray_enable_row.add_prefix(Gtk.Image.new_from_icon_name("network-transmit-receive-symbolic"))
         self.tray_enable_row.set_active(self.collector.db.get_tray_enabled())
         self.tray_enable_row.connect("notify::active", self._on_tray_enabled_changed)
         tray_group.add(self.tray_enable_row)
 
         self.min_to_tray_row = Adw.SwitchRow(title="Minimize to Tray on Close")
         self.min_to_tray_row.set_subtitle("Closing window keeps NetSplit tracking 24/7 in the background")
-        self.min_to_tray_row.add_prefix(Gtk.Image.new_from_icon_name("window-minimize-symbolic"))
         self.min_to_tray_row.set_active(self.collector.db.get_minimize_to_tray())
         self.min_to_tray_row.connect("notify::active", self._on_min_to_tray_changed)
         tray_group.add(self.min_to_tray_row)
 
         self.start_min_row = Adw.SwitchRow(title="Launch Minimized to Tray")
         self.start_min_row.set_subtitle("Start NetSplit silently in the background on launch")
-        self.start_min_row.add_prefix(Gtk.Image.new_from_icon_name("view-conceal-symbolic"))
         self.start_min_row.set_active(self.collector.db.get_start_minimized())
         self.start_min_row.connect("notify::active", self._on_start_min_changed)
         tray_group.add(self.start_min_row)
@@ -688,7 +683,6 @@ class MainWindow(Adw.ApplicationWindow):
         if is_autostart_supported():
             self.autostart_row = Adw.SwitchRow(title="Launch on System Startup")
             self.autostart_row.set_subtitle("Automatically start NetSplit in background when logging in")
-            self.autostart_row.add_prefix(Gtk.Image.new_from_icon_name("system-run-symbolic"))
             self.autostart_row.set_active(is_autostart_enabled())
             self.autostart_row.connect("notify::active", self._on_autostart_changed)
             tray_group.add(self.autostart_row)
@@ -703,23 +697,16 @@ class MainWindow(Adw.ApplicationWindow):
 
         support_row = Adw.ActionRow(title="Supported Clients")
         support_row.set_subtitle("Throne • NetMod • Netch • NekoRay • v2rayA • Clash • Sing-Box • Xray • WireGuard • OpenVPN")
-        support_row.add_prefix(Gtk.Image.new_from_icon_name("network-vpn-symbolic"))
-        auto_badge = Gtk.Label(label="AUTO-DETECT")
-        auto_badge.add_css_class("badge-vpn-active")
-        support_row.add_suffix(auto_badge)
         proxy_settings_group.add(support_row)
 
-        acct_row = Adw.ActionRow(title="Exclusive Accounting Mode")
-        acct_row.set_subtitle("When VPN is active, Direct Wi-Fi reads 0 B/s and all traffic counts as VPN")
-        acct_row.add_prefix(Gtk.Image.new_from_icon_name("security-high-symbolic"))
-        active_badge = Gtk.Label(label="ENABLED")
-        active_badge.add_css_class("badge-vpn-active")
-        acct_row.add_suffix(active_badge)
-        proxy_settings_group.add(acct_row)
+        self.exclusive_row = Adw.SwitchRow(title="Exclusive Accounting Mode")
+        self.exclusive_row.set_subtitle("When VPN is active, Direct Wi-Fi reads 0 B/s and all traffic counts as VPN")
+        self.exclusive_row.set_active(self.collector.db.get_exclusive_mode())
+        self.exclusive_row.connect("notify::active", self._on_exclusive_mode_changed)
+        proxy_settings_group.add(self.exclusive_row)
 
         # Custom Interface Override Entry
         self.custom_iface_row = Adw.EntryRow(title="Custom Interface Override (Optional)")
-        self.custom_iface_row.add_prefix(Gtk.Image.new_from_icon_name("network-wired-symbolic"))
         saved_iface = self.collector.db.get_setting("custom_vpn_iface", "")
         self.custom_iface_row.set_text(saved_iface)
         self.custom_iface_row.connect("changed", self._on_custom_iface_changed)
@@ -735,7 +722,6 @@ class MainWindow(Adw.ApplicationWindow):
 
         reset_today_row = Adw.ActionRow(title="Reset Today's Usage")
         reset_today_row.set_subtitle("Zero out accumulated bytes for today and current session")
-        reset_today_row.add_prefix(Gtk.Image.new_from_icon_name("document-revert-symbolic"))
         btn_reset_today = Gtk.Button(label="Reset Today", valign=Gtk.Align.CENTER)
         btn_reset_today.add_css_class("suggested-action")
         btn_reset_today.connect("clicked", self._on_reset_today_clicked)
@@ -744,7 +730,6 @@ class MainWindow(Adw.ApplicationWindow):
 
         clear_all_row = Adw.ActionRow(title="Clear All History")
         clear_all_row.set_subtitle("Permanently erase all historical daily and hourly database records")
-        clear_all_row.add_prefix(Gtk.Image.new_from_icon_name("user-trash-symbolic"))
         btn_clear_all = Gtk.Button(label="Clear All", valign=Gtk.Align.CENTER)
         btn_clear_all.add_css_class("destructive-action")
         btn_clear_all.connect("clicked", self._on_clear_all_clicked)
@@ -752,25 +737,30 @@ class MainWindow(Adw.ApplicationWindow):
         data_group.add(clear_all_row)
 
         db_loc_row = Adw.ActionRow(title="Local Database Path")
-        db_loc_row.add_prefix(Gtk.Image.new_from_icon_name("drive-harddisk-symbolic"))
         db_path = self.collector.db.db_path
         db_loc_row.set_subtitle(db_path)
         data_group.add(db_loc_row)
 
         page.add(data_group)
 
-        # 6. About NetSplit Group
+        # 6. About NetSplit Group (Featuring netsplit.svg icon)
         about_group = Adw.PreferencesGroup(title="About NetSplit")
 
-        ver_row = Adw.ActionRow(title="NetSplit Version")
-        ver_row.add_prefix(Gtk.Image.new_from_icon_name("help-about-symbolic"))
-        ver_lbl = Gtk.Label(label="1.3.0 (Security & Privacy Edition)", halign=Gtk.Align.END)
-        ver_lbl.add_css_class("info-val")
-        ver_row.add_suffix(ver_lbl)
-        about_group.add(ver_row)
+        banner_card = Adw.ActionRow(
+            title="NetSplit",
+            subtitle="Cross-Platform Network &amp; VPN Traffic Monitor • v1.3.0"
+        )
+        banner_card.set_activatable(False)
+        svg_path = os.path.join(self.assets_dir, "netsplit.svg")
+        if os.path.exists(svg_path):
+            app_icon = Gtk.Image.new_from_file(svg_path)
+            app_icon.set_pixel_size(44)
+            app_icon.set_valign(Gtk.Align.CENTER)
+            banner_card.add_prefix(app_icon)
+
+        about_group.add(banner_card)
 
         repo_row = Adw.ActionRow(title="GitHub Repository")
-        repo_row.add_prefix(Gtk.Image.new_from_icon_name("web-browser-symbolic"))
         repo_row.set_subtitle("https://github.com/ChavinduJayakody/NetSplit")
         btn_open_repo = Gtk.Button(label="Open", valign=Gtk.Align.CENTER)
         btn_open_repo.connect("clicked", lambda _: Gio.AppInfo.launch_default_for_uri("https://github.com/ChavinduJayakody/NetSplit", None))
@@ -780,6 +770,10 @@ class MainWindow(Adw.ApplicationWindow):
         page.add(about_group)
 
         return page
+
+    def _on_exclusive_mode_changed(self, row, param):
+        self.collector.db.set_exclusive_mode(row.get_active())
+        self._on_tick()
 
     def _on_mask_ips_changed(self, row, param):
         enabled = row.get_active()
@@ -1013,44 +1007,48 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Populate top apps
         top_apps = vpn.get("top_apps", [])
-        child = self.app_rows_container.get_first_child()
-        while child:
-            next_child = child.get_next_sibling()
-            self.app_rows_container.remove(child)
-            child = next_child
+        if top_apps != getattr(self, "_last_top_apps", None):
+            self._last_top_apps = list(top_apps)
+            for r in self.app_rows:
+                self.app_group.remove(r)
+            self.app_rows.clear()
 
-        if not top_apps:
-            row = Adw.ActionRow(title="No per-app breakdown available for current client")
-            self.app_rows_container.append(row)
-        else:
-            for app in top_apps:
-                row = Adw.ActionRow(title=app["process"])
-                total_formatted = format_bytes(app["total_bytes"])
-                sub_formatted = f"↓ {format_bytes(app['down_bytes'])}   ↑ {format_bytes(app['up_bytes'])}"
-                row.set_subtitle(sub_formatted)
-                lbl = Gtk.Label(label=total_formatted, halign=Gtk.Align.END)
-                lbl.add_css_class("info-val")
-                row.add_suffix(lbl)
-                self.app_rows_container.append(row)
+            if not top_apps:
+                row = Adw.ActionRow(title="No per-app breakdown available for current client")
+                self.app_group.add(row)
+                self.app_rows.append(row)
+            else:
+                for app in top_apps:
+                    row = Adw.ActionRow(title=app["process"])
+                    total_formatted = format_bytes(app["total_bytes"])
+                    sub_formatted = f"↓ {format_bytes(app['down_bytes'])}   ↑ {format_bytes(app['up_bytes'])}"
+                    row.set_subtitle(sub_formatted)
+                    lbl = Gtk.Label(label=total_formatted, halign=Gtk.Align.END)
+                    lbl.add_css_class("info-val")
+                    row.add_suffix(lbl)
+                    self.app_group.add(row)
+                    self.app_rows.append(row)
 
         # 6. Daily History
-        history = self.collector.db.get_daily_history(days=7)
-        child = self.hist_rows_container.get_first_child()
-        while child:
-            next_child = child.get_next_sibling()
-            self.hist_rows_container.remove(child)
-            child = next_child
+        now_ts = GLib.get_monotonic_time() / 1_000_000
+        if not hasattr(self, "_last_hist_update") or (now_ts - self._last_hist_update > 5.0):
+            self._last_hist_update = now_ts
+            history = self.collector.db.get_daily_history(days=7)
+            for r in self.hist_rows:
+                self.hist_group.remove(r)
+            self.hist_rows.clear()
 
-        for day in reversed(history):
-            row = Adw.ActionRow(title=day["date"])
-            norm_str = format_bytes(day["normal_rx"] + day["normal_tx"])
-            vpn_str = format_bytes(day["vpn_rx"] + day["vpn_tx"])
-            tot_str = format_bytes(day["total_rx"] + day["total_tx"])
-            row.set_subtitle(f"Direct: {norm_str}  |  VPN: {vpn_str}")
-            lbl = Gtk.Label(label=tot_str, halign=Gtk.Align.END)
-            lbl.add_css_class("info-val")
-            row.add_suffix(lbl)
-            self.hist_rows_container.append(row)
+            for day in reversed(history):
+                row = Adw.ActionRow(title=day["date"])
+                norm_str = format_bytes(day["normal_rx"] + day["normal_tx"])
+                vpn_str = format_bytes(day["vpn_rx"] + day["vpn_tx"])
+                tot_str = format_bytes(day["total_rx"] + day["total_tx"])
+                row.set_subtitle(f"Direct: {norm_str}  |  VPN: {vpn_str}")
+                lbl = Gtk.Label(label=tot_str, halign=Gtk.Align.END)
+                lbl.add_css_class("info-val")
+                row.add_suffix(lbl)
+                self.hist_group.add(row)
+                self.hist_rows.append(row)
 
         return True
 

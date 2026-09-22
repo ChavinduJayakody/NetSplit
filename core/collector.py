@@ -171,7 +171,8 @@ class NetworkCollector:
                 vpn_tx_delta = 0
 
             # Exclusive mode: When VPN is connected, 100% of traffic is counted as VPN, Direct Wi-Fi is 0.
-            if vpn_active:
+            exclusive_mode = self.db.get_exclusive_mode()
+            if vpn_active and exclusive_mode:
                 normal_rx_delta = 0
                 normal_tx_delta = 0
                 # Use raw physical traffic carrying the VPN tunnel
@@ -184,6 +185,16 @@ class NetworkCollector:
                 cur_vpn_tx_spd = cur_tot_tx_spd
                 cur_norm_rx_spd = 0.0
                 cur_norm_tx_spd = 0.0
+            elif vpn_active and not exclusive_mode:
+                # Concurrent split mode
+                normal_rx_delta = max(0, raw_wifi_rx_delta - vpn_rx_delta)
+                normal_tx_delta = max(0, raw_wifi_tx_delta - vpn_tx_delta)
+                cur_tot_rx_spd = raw_wifi_rx_delta / dt
+                cur_tot_tx_spd = raw_wifi_tx_delta / dt
+                cur_vpn_rx_spd = vpn_rx_delta / dt
+                cur_vpn_tx_spd = vpn_tx_delta / dt
+                cur_norm_rx_spd = normal_rx_delta / dt
+                cur_norm_tx_spd = normal_tx_delta / dt
             else:
                 vpn_rx_delta = 0
                 vpn_tx_delta = 0

@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+    <linearGradient id="purpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e879f9"/>
+      <stop offset="100%" stop-color="#a855f7"/>
+    </linearGradient>
+    <linearGradient id="glowDirect" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.8"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background Squircle -->
+  <rect x="32" y="32" width="448" height="448" rx="100" fill="url(#bg)" stroke="#334155" stroke-width="6"/>
+
+  <!-- Wi-Fi Pulse Arcs at Top -->
+  <path d="M176 170 A120 120 0 0 1 336 170" fill="none" stroke="#64748b" stroke-width="14" stroke-linecap="round" opacity="0.6"/>
+  <path d="M206 205 A80 80 0 0 1 306 205" fill="none" stroke="#94a3b8" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="256" cy="245" r="14" fill="#f8fafc" filter="url(#glow)"/>
+
+  <!-- Incoming Main Beam -->
+  <path d="M256 260 L256 310" stroke="#f8fafc" stroke-width="14" stroke-linecap="round"/>
+
+  <!-- Split Paths: Left = Direct (Blue), Right = VPN (Purple) -->
+  <!-- Left Direct Path -->
+  <path d="M256 310 C256 350, 160 360, 160 410" fill="none" stroke="url(#blueGrad)" stroke-width="16" stroke-linecap="round" filter="url(#glow)"/>
+  <circle cx="160" cy="410" r="16" fill="#38bdf8"/>
+  <!-- Direct Node Antenna Icon -->
+  <path d="M140 435 L180 435" stroke="#38bdf8" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Right VPN Tunnel Path -->
+  <path d="M256 310 C256 350, 352 360, 352 410" fill="none" stroke="url(#purpleGrad)" stroke-width="16" stroke-linecap="round" filter="url(#glow)"/>
+  <circle cx="352" cy="410" r="16" fill="#c084fc"/>
+  <!-- VPN Shield Indicator -->
+  <path d="M336 435 L368 435" stroke="#c084fc" stroke-width="6" stroke-linecap="round"/>
+</svg>
