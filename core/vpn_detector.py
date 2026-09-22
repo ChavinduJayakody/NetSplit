@@ -274,5 +274,6 @@ class VpnDetector:
             "active_profile": profile_name or (primary_client if is_running else "None"),
             "profile_type": protocol or "VPN/Proxy",
             "running_tools": running_tools,
-            "top_apps": self.get_top_apps(limit=8),
+            # Only report per-app stats when a TUN is actually up
+            "top_apps": self.get_top_apps(limit=8) if tun_active else [],
         }

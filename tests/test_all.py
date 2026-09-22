@@ -247,5 +247,243 @@ class TestSecurityAndPrivacy(unittest.TestCase):
             self.assertTrue(db.get_exclusive_mode())
 
 
+class TestNoVpnDirectOnly(unittest.TestCase):
+    """
+    Scenario A — Wi-Fi connected, VPN client NOT running, no TUN interface.
+    All traffic must be classified as Direct. VPN speeds must be 0.
+    """
+
+    def setUp(self):
+        import unittest.mock as mock
+        self.mock = mock
+
+    def test_vpn_detector_no_vpn_running(self):
+        """VpnDetector reports nothing running and no TUN when no proxy process exists."""
+        from core.vpn_detector import VpnDetector
+        with self.mock.patch("psutil.process_iter", return_value=[]):
+            with self.mock.patch("psutil.net_io_counters", return_value={}):
+                vd = VpnDetector()
+                self.assertFalse(vd.is_vpn_running())
+                self.assertIsNone(vd.get_tun_interface_name())
+                self.assertFalse(vd.is_tun_active())
+
+    def test_status_summary_disconnected(self):
+        """status_summary returns 'Disconnected' with no tools and no TUN."""
+        from core.vpn_detector import VpnDetector
+        with self.mock.patch("psutil.process_iter", return_value=[]):
+            with self.mock.patch("psutil.net_io_counters", return_value={}):
+                vd = VpnDetector()
+                summary = vd.get_status_summary()
+                self.assertFalse(summary["tun_active"])
+                self.assertFalse(summary["is_running"])
+                self.assertEqual(summary["status_text"], "Disconnected")
+                self.assertEqual(summary["running_tools"], [])
+                self.assertEqual(summary["top_apps"], [])
+
+    def test_collector_no_vpn_all_traffic_is_direct(self):
+        """
+        When VPN is not active, _sample_traffic must put 100% of delta into
+        normal_rx/tx and 0 into vpn_rx/tx.
+        """
+        import tempfile
+        from core.collector import NetworkCollector
+        from core.database import StatsDatabase
+
+        # Fake interfaces: only eth0 (or wlan0), no tun
+        fake_counters = {
+            "wlan0": self.mock.MagicMock(bytes_recv=10_000, bytes_sent=5_000)
+        }
+
+        with tempfile.TemporaryDirectory() as td:
+            with self.mock.patch("core.collector.get_wifi_details", return_value={"ssid": "TestNet", "connected": True}):
+                with self.mock.patch("core.collector.get_default_gateway_and_iface", return_value=("wlan0", "192.168.1.1")):
+                    with self.mock.patch("psutil.net_io_counters", return_value=fake_counters):
+                        with self.mock.patch("core.collector.PingProbe"):
+                            with self.mock.patch("core.collector.VpnDetector") as MockVpn:
+                                MockVpn.return_value.get_tun_interface_name.return_value = None
+                                MockVpn.return_value.get_status_summary.return_value = {
+                                    "tun_active": False, "is_running": False,
+                                    "status_text": "Disconnected", "client_name": "VPN / Proxy",
+                                    "active_profile": "None", "profile_type": "VPN/Proxy",
+                                    "running_tools": [], "top_apps": [],
+                                }
+
+                                db_path = os.path.join(td, "no_vpn.db")
+                                db = StatsDatabase(db_path)
+
+                                c = NetworkCollector.__new__(NetworkCollector)
+                                c.wifi_iface = "wlan0"
+                                c.is_windows = False
+                                c.db = db
+                                c.vpn = MockVpn.return_value
+                                c.throne = c.vpn
+                                c._lock = __import__("threading").Lock()
+                                c.prev_wifi_rx = 8_000
+                                c.prev_wifi_tx = 4_000
+                                c.prev_vpn_rx = 0
+                                c.prev_vpn_tx = 0
+                                c.prev_timestamp = time.time() - 1.0
+                                c.session_normal_rx = 0
+                                c.session_normal_tx = 0
+                                c.session_vpn_rx = 0
+                                c.session_vpn_tx = 0
+                                c.session_total_rx = 0
+                                c.session_total_tx = 0
+                                from collections import deque
+                                c.speed_history = deque(maxlen=60)
+
+                                c._sample_traffic(time.time())
+
+                                # All delta goes to normal, nothing to VPN
+                                self.assertEqual(c.session_vpn_rx, 0)
+                                self.assertEqual(c.session_vpn_tx, 0)
+                                self.assertEqual(c.session_normal_rx, 2_000)  # 10000 - 8000
+                                self.assertEqual(c.session_normal_tx, 1_000)  # 5000 - 4000
+                                self.assertEqual(c.vpn_rx_speed, 0.0)
+                                self.assertEqual(c.vpn_tx_speed, 0.0)
+                                self.assertGreater(c.normal_rx_speed, 0.0)
+
+    def test_snapshot_keys_present_no_vpn(self):
+        """get_snapshot() must always return all required keys even with no VPN."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            collector = NetworkCollector.__new__(NetworkCollector)
+            # Minimal init via real NetworkCollector, but stopped immediately
+            with self.mock.patch("core.collector.get_wifi_details", return_value={"ssid": "TestNet", "connected": True}):
+                with self.mock.patch("core.collector.get_default_gateway_and_iface", return_value=("wlan0", "192.168.1.1")):
+                    from core.database import StatsDatabase
+                    db = StatsDatabase(os.path.join(td, "snap_test.db"))
+
+                    with self.mock.patch("core.collector.VpnDetector") as MockVpn:
+                        MockVpn.return_value.get_tun_interface_name.return_value = None
+                        MockVpn.return_value.get_status_summary.return_value = {
+                            "tun_active": False, "is_running": False,
+                            "status_text": "Disconnected", "client_name": "VPN / Proxy",
+                            "active_profile": "None", "profile_type": "VPN/Proxy",
+                            "running_tools": [], "top_apps": [],
+                        }
+                        with self.mock.patch("core.collector.PingProbe") as MockPing:
+                            MockPing.return_value.get_stats.return_value = {
+                                "gateway_ping_ms": None,
+                                "internet_ping_ms": None,
+                                "public_ip": "N/A",
+                            }
+                            import threading
+                            from collections import deque
+                            collector.wifi_iface = "wlan0"
+                            collector.is_windows = False
+                            collector.db = db
+                            collector.vpn = MockVpn.return_value
+                            collector.throne = collector.vpn
+                            collector.ping_probe = MockPing.return_value
+                            collector.wifi_info = {"ssid": "TestNet", "connected": True}
+                            collector._lock = threading.Lock()
+                            collector.normal_rx_speed = 0.0
+                            collector.normal_tx_speed = 0.0
+                            collector.vpn_rx_speed = 0.0
+                            collector.vpn_tx_speed = 0.0
+                            collector.total_rx_speed = 0.0
+                            collector.total_tx_speed = 0.0
+                            collector.session_normal_rx = 0
+                            collector.session_normal_tx = 0
+                            collector.session_vpn_rx = 0
+                            collector.session_vpn_tx = 0
+                            collector.session_total_rx = 0
+                            collector.session_total_tx = 0
+                            collector.speed_history = deque(maxlen=60)
+
+                            snap = collector.get_snapshot()
+                            for key in ["speeds", "session_usage", "today_usage", "wifi", "ping", "vpn", "throne"]:
+                                self.assertIn(key, snap, f"Missing key: {key}")
+                            self.assertEqual(snap["speeds"]["vpn_down_bps"], 0.0)
+                            self.assertEqual(snap["speeds"]["vpn_up_bps"], 0.0)
+
+
+class TestNoToolsInstalled(unittest.TestCase):
+    """
+    Scenario B — Bare system with NO VPN/proxy tools installed at all.
+    No Throne DB, no running proxy process, no tun interface.
+    App must start, collect, and display without any crash or exception.
+    """
+
+    def setUp(self):
+        import unittest.mock as mock
+        self.mock = mock
+
+    def test_no_throne_db_get_top_apps_returns_empty(self):
+        """get_top_apps() returns [] when Throne stats DB doesn't exist."""
+        from core.vpn_detector import VpnDetector
+        vd = VpnDetector()
+        # Point throne_stats_db to a path that doesn't exist
+        vd.throne_stats_db = "/nonexistent/path/throne_stats.db"
+        result = vd.get_top_apps()
+        self.assertEqual(result, [])
+
+    def test_no_throne_db_profile_returns_none(self):
+        """get_active_profile_and_protocol() returns (None, None) with no DB and no running tools."""
+        from core.vpn_detector import VpnDetector
+        with self.mock.patch("psutil.process_iter", return_value=[]):
+            vd = VpnDetector()
+            vd.throne_db = "/nonexistent/throne.db"
+            profile, proto = vd.get_active_profile_and_protocol()
+            self.assertIsNone(profile)
+            self.assertIsNone(proto)
+
+    def test_no_tun_interface_on_clean_system(self):
+        """get_tun_interface_name() returns None when only eth/wlan adapters exist."""
+        from core.vpn_detector import VpnDetector
+        clean_adapters = {
+            "wlan0": self.mock.MagicMock(),
+            "eth0": self.mock.MagicMock(),
+            "lo": self.mock.MagicMock(),
+        }
+        with self.mock.patch("psutil.net_io_counters", return_value=clean_adapters):
+            # Patch /sys/class/net to return only those interfaces
+            with self.mock.patch("os.path.exists", side_effect=lambda p: False if "tun_flags" in p else os.path.exists.__wrapped__(p) if hasattr(os.path.exists, "__wrapped__") else True):
+                vd = VpnDetector()
+                vd.custom_iface = None
+                # Override sysfs check entirely — directly test name matching
+                result = vd.get_tun_interface_name()
+                # wlan0 / eth0 / lo should never match TUN prefix heuristics
+                self.assertIsNone(result)
+
+    def test_status_summary_fully_bare_system(self):
+        """Full status_summary on a bare system: all False, status Disconnected, empty lists."""
+        from core.vpn_detector import VpnDetector
+        with self.mock.patch("psutil.process_iter", return_value=[]):
+            with self.mock.patch("psutil.net_io_counters", return_value={}):
+                vd = VpnDetector()
+                vd.throne_db = "/nonexistent/throne.db"
+                vd.throne_stats_db = "/nonexistent/throne_stats.db"
+                summary = vd.get_status_summary()
+                self.assertFalse(summary["tun_active"])
+                self.assertFalse(summary["is_running"])
+                self.assertEqual(summary["status_text"], "Disconnected")
+                self.assertIsNone(summary["tun_interface"])
+                self.assertEqual(summary["running_tools"], [])
+                self.assertEqual(summary["top_apps"], [])
+
+    def test_database_works_with_no_vpn_traffic(self):
+        """Database correctly handles session with zero VPN traffic recorded."""
+        import tempfile
+        from core.database import StatsDatabase
+        with tempfile.TemporaryDirectory() as td:
+            db = StatsDatabase(os.path.join(td, "bare.db"))
+            # Record only direct traffic, no VPN
+            db.record_traffic(normal_rx=5000, normal_tx=2000, vpn_rx=0, vpn_tx=0)
+            today = db.get_today_stats()
+            self.assertEqual(today["normal_rx"], 5000)
+            self.assertEqual(today["vpn_rx"], 0)
+            self.assertEqual(today["vpn_tx"], 0)
+            self.assertEqual(today["total_rx"], 5000)   # only direct
+
+    def test_format_helpers_zero_vpn(self):
+        """format_bytes and format_speed handle zero gracefully."""
+        self.assertEqual(format_bytes(0), "0 B")
+        self.assertEqual(format_speed(0.0), "0 B/s")
+        self.assertEqual(format_bytes(-1), "0 B")      # negative clamped
+        self.assertEqual(format_speed(-100), "0 B/s")  # negative clamped
+
+
 if __name__ == "__main__":
     unittest.main()
