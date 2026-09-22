@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NetSplit | Wi-Fi &amp; Throne VPN Traffic Monitor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg-primary: #0d1117;
+      --bg-card: rgba(22, 27, 34, 0.75);
+      --bg-card-hover: rgba(30, 36, 46, 0.9);
+      --border-subtle: rgba(48, 54, 61, 0.8);
+      --text-main: #f0f6fc;
+      --text-muted: #8b949e;
+      --accent-direct: #38bdf8; /* Sky Blue */
+      --accent-vpn: #c084fc;    /* Bright Purple */
+      --accent-total: #4ade80;  /* Emerald */
+      --accent-warning: #fbbf24;
+      --accent-danger: #f87171;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: radial-gradient(circle at 10% 10%, #161b22 0%, #0d1117 90%);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: 0 auto;
+    }
+
+    /* Top Bar Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .title-group h1 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .title-group p {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .header-badges {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      border: 1px solid transparent;
+      backdrop-filter: blur(8px);
+    }
+
+    .badge-vpn-active {
+      background: rgba(38, 162, 105, 0.2);
+      border-color: rgba(74, 222, 128, 0.4);
+      color: var(--accent-total);
+    }
+
+    .badge-vpn-inactive {
+      background: rgba(139, 148, 158, 0.15);
+      border-color: var(--border-subtle);
+      color: var(--text-muted);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* Main Grid Layout */
+    .grid-dashboard {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 960px) {
+      .grid-dashboard {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 20px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .card:hover {
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .card-title {
+      font-size: 0.88rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+
+    .speed-number {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 2.2rem;
+      font-weight: 800;
+      line-height: 1.1;
+      margin-bottom: 6px;
+    }
+
+    .color-direct { color: var(--accent-direct); }
+    .color-vpn { color: var(--accent-vpn); }
+    .color-total { color: var(--accent-total); }
+
+    .speed-sub {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 12px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .card-footer-stat {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.85rem;
+    }
+
+    /* Live Chart Section */
+    .chart-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 240px;
+      width: 100%;
+    }
+
+    /* Details Dual Column */
+    .details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 800px) {
+      .details-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .info-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-size: 0.92rem;
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .info-row .label {
+      color: var(--text-muted);
+    }
+
+    .info-row .val {
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* App Usage Table */
+    .app-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+
+    .app-table th {
+      text-align: left;
+      color: var(--text-muted);
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--border-subtle);
+      font-weight: 600;
+    }
+
+    .app-table td {
+      padding: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 8px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent-direct), var(--accent-vpn));
+      transition: width 0.4s ease;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="title-group">
+        <h1>🌐 NetSplit</h1>
+        <p>Live Real-Time Traffic &amp; Throne VPN Accounting</p>
+      </div>
+      <div class="header-badges">
+        <div id="badge-wifi" class="badge badge-vpn-inactive">
+          <span class="dot"></span>
+          <span id="wifi-ssid-badge">Wi-Fi Checking...</span>
+        </div>
+        <div id="badge-vpn" class="badge badge-vpn-inactive">
+          <span class="dot"></span>
+          <span id="vpn-status-badge">VPN Disconnected</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Top Speeds Grid -->
+    <div class="grid-dashboard">
+      <!-- Direct Wi-Fi Card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Direct Wi-Fi (Normal)</span>
+          <span style="font-size: 1.2rem;">📶</span>
+        </div>
+        <div id="speed-normal-down" class="speed-number color-direct">0.0 KB/s</div>
+        <div class="speed-sub">
+          <span>↓ <span id="speed-normal-sub-down">0.0 KB/s</span></span>
+          <span>↑ <span id="speed-normal-sub-up">0.0 KB/s</span></span>
+        </div>
+        <div class="card-footer-stat">
+          <span class="text-muted">Today Direct:</span>
+          <strong id="today-normal-val">0.0 MB</strong>
+        </div>
+      </div>
+
+      <!-- Throne VPN Card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Throne VPN (Tunnel)</span>
+          <span style="font-size: 1.2rem;">🛡️</span>
+        </div>
+        <div id="speed-vpn-down" class="speed-number color-vpn">0.0 KB/s</div>
+        <div class="speed-sub">
+          <span>↓ <span id="speed-vpn-sub-down">0.0 KB/s</span></span>
+          <span>↑ <span id="speed-vpn-sub-up">0.0 KB/s</span></span>
+        </div>
+        <div class="card-footer-stat">
+          <span class="text-muted">Today VPN:</span>
+          <strong id="today-vpn-val">0.0 MB</strong>
+        </div>
+      </div>
+
+      <!-- Total Combined Wi-Fi Card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Total Wi-Fi (Physical)</span>
+          <span style="font-size: 1.2rem;">⚡</span>
+        </div>
+        <div id="speed-total-down" class="speed-number color-total">0.0 KB/s</div>
+        <div class="speed-sub">
+          <span>↓ <span id="speed-total-sub-down">0.0 KB/s</span></span>
+          <span>↑ <span id="speed-total-sub-up">0.0 KB/s</span></span>
+        </div>
+        <div class="card-footer-stat">
+          <span class="text-muted">Today Grand Total:</span>
+          <strong id="today-total-val">0.0 MB</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Real-time Chart Section -->
+    <div class="chart-section">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <span class="card-title">Real-Time Download Speed (Past 30 Seconds)</span>
+        <span id="chart-legend" style="font-size: 0.8rem; color: var(--text-muted);">
+          <span style="color: var(--accent-direct)">● Normal</span> &nbsp;
+          <span style="color: var(--accent-vpn)">● VPN</span> &nbsp;
+          <span style="color: var(--accent-total)">● Total</span>
+        </span>
+      </div>
+      <div class="chart-container">
+        <canvas id="speedChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Details Grid -->
+    <div class="details-grid">
+      <!-- Wi-Fi & Latency Info Card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Wi-Fi & Diagnostics</span>
+          <span>📡</span>
+        </div>
+        <div class="info-list">
+          <div class="info-row">
+            <span class="label">SSID (Network)</span>
+            <span class="val" id="info-ssid">--</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Signal Quality</span>
+            <span class="val" id="info-signal">--%</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Link Bitrate</span>
+            <span class="val" id="info-rate">--</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Band & Channel</span>
+            <span class="val" id="info-band">--</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Router Latency (Gateway)</span>
+            <span class="val" id="info-ping-gw">-- ms</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Internet Latency (1.1.1.1)</span>
+            <span class="val" id="info-ping-inet">-- ms</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Local IP</span>
+            <span class="val" id="info-local-ip">--</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Public Egress IP</span>
+            <span class="val" id="info-public-ip">--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Throne VPN & Top Apps Card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Throne VPN & App Breakdown</span>
+          <span>🔒</span>
+        </div>
+        <div class="info-list" style="margin-bottom: 14px;">
+          <div class="info-row">
+            <span class="label">Throne State</span>
+            <span class="val" id="throne-state-text">Disconnected</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Active Profile</span>
+            <span class="val" id="throne-profile">None</span>
+          </div>
+          <div class="info-row">
+            <span class="label">TUN Interface</span>
+            <span class="val" id="throne-tun-iface">Inactive</span>
+          </div>
+        </div>
+
+        <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 8px;">
+          TOP APPS VIA VPN (THORNE STATS)
+        </div>
+        <table class="app-table">
+          <thead>
+            <tr>
+              <th>Application</th>
+              <th style="text-align: right;">Total Transferred</th>
+            </tr>
+          </thead>
+          <tbody id="app-table-body">
+            <tr><td colspan="2" style="color: var(--text-muted);">No app data yet</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Setup Chart.js
+    const ctx = document.getElementById('speedChart').getContext('2d');
+    const maxDataPoints = 30;
+    const initialLabels = Array.from({length: maxDataPoints}, (_, i) => `${maxDataPoints - i}s ago`);
+
+    const speedChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: initialLabels,
+        datasets: [
+          {
+            label: 'Normal Down (MB/s)',
+            data: Array(maxDataPoints).fill(0),
+            borderColor: '#38bdf8',
+            backgroundColor: 'rgba(56, 189, 248, 0.1)',
+            fill: true,
+            tension: 0.35,
+            borderWidth: 2,
+            pointRadius: 0
+          },
+          {
+            label: 'VPN Down (MB/s)',
+            data: Array(maxDataPoints).fill(0),
+            borderColor: '#c084fc',
+            backgroundColor: 'rgba(192, 132, 252, 0.15)',
+            fill: true,
+            tension: 0.35,
+            borderWidth: 2,
+            pointRadius: 0
+          },
+          {
+            label: 'Total Down (MB/s)',
+            data: Array(maxDataPoints).fill(0),
+            borderColor: '#4ade80',
+            borderDash: [4, 4],
+            tension: 0.35,
+            borderWidth: 2,
+            pointRadius: 0
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 400 },
+        scales: {
+          x: {
+            display: false
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            ticks: {
+              color: '#8b949e',
+              callback: (val) => val.toFixed(1) + ' MB/s'
+            }
+          }
+        },
+        plugins: {
+          legend: { display: false }
+        }
+      }
+    });
+
+    function formatBpsToMB(bps) {
+      return (bps / (1024 * 1024));
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes || bytes < 0) return "0 B";
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+      if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + " MB";
+      return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+    }
+
+    function updateDashboard(snap) {
+      if (!snap) return;
+
+      const spd = snap.speeds;
+      const today = snap.today_usage;
+      const wifi = snap.wifi;
+      const ping = snap.ping;
+      const throne = snap.throne;
+
+      // 1. Speeds
+      document.getElementById('speed-normal-down').textContent = spd.normal_down_str;
+      document.getElementById('speed-normal-sub-down').textContent = spd.normal_down_str;
+      document.getElementById('speed-normal-sub-up').textContent = spd.normal_up_str;
+
+      document.getElementById('speed-vpn-down').textContent = spd.vpn_down_str;
+      document.getElementById('speed-vpn-sub-down').textContent = spd.vpn_down_str;
+      document.getElementById('speed-vpn-sub-up').textContent = spd.vpn_up_str;
+
+      document.getElementById('speed-total-down').textContent = spd.total_down_str;
+      document.getElementById('speed-total-sub-down').textContent = spd.total_down_str;
+      document.getElementById('speed-total-sub-up').textContent = spd.total_up_str;
+
+      // Today stats
+      document.getElementById('today-normal-val').textContent = today.normal_total_str;
+      document.getElementById('today-vpn-val').textContent = today.vpn_total_str;
+      document.getElementById('today-total-val').textContent = today.grand_total_str;
+
+      // 2. Badges
+      const wifiBadge = document.getElementById('badge-wifi');
+      const wifiSsidSpan = document.getElementById('wifi-ssid-badge');
+      if (wifi.connected) {
+        wifiBadge.className = "badge badge-vpn-active";
+        wifiSsidSpan.textContent = wifi.ssid;
+      } else {
+        wifiBadge.className = "badge badge-vpn-inactive";
+        wifiSsidSpan.textContent = "Wi-Fi Disconnected";
+      }
+
+      const vpnBadge = document.getElementById('badge-vpn');
+      const vpnStatusSpan = document.getElementById('vpn-status-badge');
+      if (throne.tun_active) {
+        vpnBadge.className = "badge badge-vpn-active";
+        vpnStatusSpan.textContent = "VPN ACTIVE: " + (throne.active_profile || "Connected");
+      } else {
+        vpnBadge.className = "badge badge-vpn-inactive";
+        vpnStatusSpan.textContent = "DIRECT ONLY";
+      }
+
+      // 3. Wi-Fi & Diagnostics
+      document.getElementById('info-ssid').textContent = wifi.ssid || "--";
+      document.getElementById('info-signal').textContent = (wifi.signal || 0) + "% " + (wifi.bars || "");
+      document.getElementById('info-rate').textContent = wifi.bitrate || "--";
+      document.getElementById('info-band').textContent = (wifi.band || "--") + " (Ch " + (wifi.channel || "--") + ")";
+
+      const gwPing = ping.gateway_ping_ms !== null ? ping.gateway_ping_ms.toFixed(2) + " ms" : "--";
+      const inetPing = ping.internet_ping_ms !== null ? ping.internet_ping_ms.toFixed(2) + " ms" : "--";
+      document.getElementById('info-ping-gw').textContent = gwPing;
+      document.getElementById('info-ping-inet').textContent = inetPing;
+      document.getElementById('info-local-ip').textContent = wifi.local_ip || "--";
+      document.getElementById('info-public-ip').textContent = ping.public_ip || "--";
+
+      // 4. Throne & Apps
+      document.getElementById('throne-state-text').textContent = throne.status_text || "N/A";
+      document.getElementById('throne-profile').textContent = (throne.active_profile || "None") + (throne.profile_type ? " (" + throne.profile_type + ")" : "");
+      document.getElementById('throne-tun-iface').textContent = throne.tun_interface || "Inactive";
+
+      const tableBody = document.getElementById('app-table-body');
+      if (throne.top_apps && throne.top_apps.length > 0) {
+        tableBody.innerHTML = throne.top_apps.map(app => `
+          <tr>
+            <td style="color: #e6edf3; font-weight: 500;">${app.process}</td>
+            <td style="text-align: right; color: var(--accent-vpn); font-weight: 600;">${formatBytes(app.total_bytes)}</td>
+          </tr>
+        `).join('');
+      } else {
+        tableBody.innerHTML = '<tr><td colspan="2" style="color: var(--text-muted);">No app data yet</td></tr>';
+      }
+
+      // 5. Update Real-Time Chart
+      const normMB = formatBpsToMB(spd.normal_down_bps);
+      const vpnMB = formatBpsToMB(spd.vpn_down_bps);
+      const totMB = formatBpsToMB(spd.total_down_bps);
+
+      speedChart.data.datasets[0].data.shift();
+      speedChart.data.datasets[0].data.push(normMB);
+
+      speedChart.data.datasets[1].data.shift();
+      speedChart.data.datasets[1].data.push(vpnMB);
+
+      speedChart.data.datasets[2].data.shift();
+      speedChart.data.datasets[2].data.push(totMB);
+
+      speedChart.update('none');
+    }
+
+    // Connect to SSE stream
+    function initEvents() {
+      const evtSource = new EventSource('/api/stream');
+      evtSource.onmessage = function(event) {
+        try {
+          const snap = JSON.parse(event.data);
+          updateDashboard(snap);
+        } catch(e) {
+          console.error("SSE parse error", e);
+        }
+      };
+      evtSource.onerror = function(err) {
+        console.warn("SSE error, falling back to polling", err);
+        evtSource.close();
+        setInterval(fetchStats, 1000);
+      };
+    }
+
+    function fetchStats() {
+      fetch('/api/stats')
+        .then(r => r.json())
+        .then(updateDashboard)
+        .catch(console.error);
+    }
+
+    initEvents();
+  </script>
+</body>
+</html>
