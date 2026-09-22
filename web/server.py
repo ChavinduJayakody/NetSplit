@@ -16,13 +16,28 @@ from core.collector import NetworkCollector
 from core.security import sanitize_static_path, mask_ip
 
 
+import sys
+
+
+def get_static_dir() -> str:
+    """Resolve the web static directory whether running from source or frozen binary."""
+    if hasattr(sys, "_MEIPASS"):
+        for cand in [
+            os.path.join(sys._MEIPASS, "web", "static"),
+            os.path.join(sys._MEIPASS, "static"),
+        ]:
+            if os.path.exists(cand):
+                return cand
+    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
+
+
 class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
     daemon_threads = True
 
 
 class NetworkMonitorHandler(BaseHTTPRequestHandler):
     collector: Optional[NetworkCollector] = None
-    static_dir: str = os.path.join(os.path.dirname(__file__), "static")
+    static_dir: str = get_static_dir()
 
     def log_message(self, format, *args):
         # Silence default terminal request logs to keep output clean

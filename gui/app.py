@@ -7,11 +7,30 @@ Wi-Fi signal diagnostics, Throne per-app statistics, and full Settings customiza
 import sys
 import os
 import math
-import gi
-gi.require_version('Gtk', '4.0')
-gi.require_version('Adw', '1')
-from gi.repository import Gtk, Gdk, Adw, GLib, Gio
-import cairo
+try:
+    import gi
+    gi.require_version('Gtk', '4.0')
+    gi.require_version('Adw', '1')
+    from gi.repository import Gtk, Gdk, Adw, GLib, Gio
+    import cairo
+    HAS_GTK = True
+except (ImportError, ValueError):
+    HAS_GTK = False
+    class _Dummy:
+        def __init__(self, *args, **kwargs):
+            pass
+        def __getattr__(self, name):
+            return _Dummy
+        def __call__(self, *args, **kwargs):
+            return _Dummy()
+    class _DummyModule:
+        def __getattr__(self, name):
+            return _Dummy
+        def __call__(self, *args, **kwargs):
+            return _Dummy()
+    Gtk = Gdk = Adw = GLib = Gio = cairo = _DummyModule()
+
+
 
 from core.collector import NetworkCollector, format_bytes, format_speed
 from core.tray import create_tray_controller
@@ -1124,6 +1143,8 @@ class NetworkMonitorApp(Adw.Application):
 
 
 def run_gui(collector: NetworkCollector, start_minimized: bool = False):
+    if not HAS_GTK:
+        raise RuntimeError("GTK 4 / Libadwaita is not available on this platform. Please run with --desktop or in CLI mode.")
     app = NetworkMonitorApp(collector, start_minimized=start_minimized)
     # Strip custom CLI flags before passing to GTK argument parser
     gtk_args = [arg for arg in sys.argv if arg not in ("--minimized", "--gnome", "--desktop", "--cli", "--web")]
