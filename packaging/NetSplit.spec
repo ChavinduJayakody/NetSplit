@@ -4,7 +4,8 @@ import sys
 import platform
 
 block_cipher = None
-project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+spec_dir = SPECPATH if 'SPECPATH' in globals() else (os.path.dirname(os.path.abspath(__file__)) if '__file__' in globals() else os.path.abspath("packaging"))
+project_root = os.path.abspath(os.path.join(spec_dir, ".."))
 
 is_windows = platform.system() == "Windows"
 icon_path = os.path.join(project_root, "assets", "netsplit.ico" if is_windows else "netsplit.png")
