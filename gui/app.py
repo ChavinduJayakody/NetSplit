@@ -33,9 +33,10 @@ except (ImportError, ValueError):
 
 
 from core.collector import NetworkCollector, format_bytes, format_speed
-from core.tray import create_tray_controller
+from core.tray import create_tray_controller, DISPLAY_MODES
 from core.autostart import is_autostart_supported, is_autostart_enabled, set_autostart
 from core.security import mask_ip
+from gui.hud import FloatingHudWindow
 
 
 CSS_STYLES = """
@@ -166,6 +167,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.reveal_local_ip = False
         self.reveal_public_ip = False
         self.reveal_header_ip = False
+        self.hud_window = None
 
         self._build_ui()
 
@@ -184,7 +186,8 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_close_request(self, window):
         min_to_tray = self.collector.db.get_minimize_to_tray()
         tray_enabled = self.collector.db.get_tray_enabled()
-        if min_to_tray and tray_enabled:
+        hud_enabled = self.collector.db.get_hud_enabled()
+        if (min_to_tray and tray_enabled) or hud_enabled:
             self.set_visible(False)
             return True  # Keep running in background!
         self.app.quit_application()
@@ -231,6 +234,10 @@ class MainWindow(Adw.ApplicationWindow):
         header.pack_end(self.vpn_badge)
 
         # Actions for primary menu on top
+        action_toggle_hud = Gio.SimpleAction.new("toggle_hud", None)
+        action_toggle_hud.connect("activate", self._on_menu_toggle_hud)
+        self.add_action(action_toggle_hud)
+
         action_troubleshoot = Gio.SimpleAction.new("troubleshoot", None)
         action_troubleshoot.connect("activate", self._on_menu_troubleshoot)
         self.add_action(action_troubleshoot)
@@ -241,6 +248,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Primary Options Menu on top
         menu = Gio.Menu()
+        menu.append("📊 Toggle Desktop HUD", "win.toggle_hud")
         menu.append("🛠️ Troubleshoot Network...", "win.troubleshoot")
         menu.append("⚙️ Preferences & Settings", "win.preferences")
 
@@ -262,6 +270,15 @@ class MainWindow(Adw.ApplicationWindow):
         btn_quick_trouble.set_valign(Gtk.Align.CENTER)
         btn_quick_trouble.connect("clicked", self._on_menu_troubleshoot)
         header.pack_end(btn_quick_trouble)
+
+        # Quick Mini HUD Header Button
+        btn_quick_hud = Gtk.Button()
+        btn_quick_hud.set_label("Mini HUD")
+        btn_quick_hud.set_tooltip_text("Toggle Floating Desktop HUD Pill")
+        btn_quick_hud.add_css_class("flat")
+        btn_quick_hud.set_valign(Gtk.Align.CENTER)
+        btn_quick_hud.connect("clicked", lambda *args: self._on_menu_toggle_hud(None, None))
+        header.pack_end(btn_quick_hud)
 
         main_box.append(header)
 
@@ -733,9 +750,56 @@ class MainWindow(Adw.ApplicationWindow):
             self.autostart_row.connect("notify::active", self._on_autostart_changed)
             tray_group.add(self.autostart_row)
 
+        self.tray_mode_row = Adw.ComboRow(title="Top Bar Telemetry Display")
+        self.tray_mode_row.set_subtitle("Select metric displayed directly on GNOME Shell top panel")
+        tray_model = Gtk.StringList.new([name for _, name in DISPLAY_MODES])
+        self.tray_mode_row.set_model(tray_model)
+        cur_tray_mode = self.collector.db.get_tray_display_mode()
+        keys = [k for k, _ in DISPLAY_MODES]
+        idx = keys.index(cur_tray_mode) if cur_tray_mode in keys else 0
+        self.tray_mode_row.set_selected(idx)
+        self.tray_mode_row.connect("notify::selected", self._on_tray_mode_changed)
+        tray_group.add(self.tray_mode_row)
+
         page.add(tray_group)
 
-        # 4. VPN and Proxy Engine Group
+        # 4. Mini Floating Desktop HUD Group
+        hud_group = Adw.PreferencesGroup(
+            title="Mini Floating Desktop HUD",
+            description="Movable, translucent always-on-top desktop telemetry pill"
+        )
+        self.hud_enable_row = Adw.SwitchRow(title="Show Floating Desktop HUD")
+        self.hud_enable_row.set_subtitle("Display live network speeds widget floating on your desktop")
+        self.hud_enable_row.set_active(self.collector.db.get_hud_enabled())
+        self.hud_enable_row.connect("notify::active", self._on_hud_enabled_changed)
+        hud_group.add(self.hud_enable_row)
+
+        self.hud_mode_row = Adw.ComboRow(title="HUD Display Metric")
+        self.hud_mode_row.set_subtitle("Choose which telemetry statistic is featured in the HUD")
+        hud_names = [name for k, name in DISPLAY_MODES if k != "icon_only"]
+        self.hud_keys = [k for k, _ in DISPLAY_MODES if k != "icon_only"]
+        hud_model = Gtk.StringList.new(hud_names)
+        self.hud_mode_row.set_model(hud_model)
+        cur_hud_mode = self.collector.db.get_hud_display_mode()
+        idx_hud = self.hud_keys.index(cur_hud_mode) if cur_hud_mode in self.hud_keys else 0
+        self.hud_mode_row.set_selected(idx_hud)
+        self.hud_mode_row.connect("notify::selected", self._on_hud_mode_changed)
+        hud_group.add(self.hud_mode_row)
+
+        self.hud_opacity_row = Adw.ComboRow(title="HUD Window Opacity")
+        self.hud_opacity_row.set_subtitle("Adjust glass transparency level")
+        self.hud_opacity_options = [60, 75, 90, 100]
+        opacity_model = Gtk.StringList.new([f"{op}%" for op in self.hud_opacity_options])
+        self.hud_opacity_row.set_model(opacity_model)
+        cur_op = self.collector.db.get_hud_opacity()
+        idx_op = self.hud_opacity_options.index(cur_op) if cur_op in self.hud_opacity_options else 2  # default 90%
+        self.hud_opacity_row.set_selected(idx_op)
+        self.hud_opacity_row.connect("notify::selected", self._on_hud_opacity_changed)
+        hud_group.add(self.hud_opacity_row)
+
+        page.add(hud_group)
+
+        # 5. VPN and Proxy Engine Group
         proxy_settings_group = Adw.PreferencesGroup(
             title="VPN and Proxy Compatibility",
             description="Multi-protocol client detection and exclusive accounting rules"
@@ -878,6 +942,63 @@ class MainWindow(Adw.ApplicationWindow):
             self.app.start_tray()
         else:
             self.app.stop_tray()
+
+    def _on_tray_mode_changed(self, row, param):
+        idx = row.get_selected()
+        keys = [k for k, _ in DISPLAY_MODES]
+        if 0 <= idx < len(keys):
+            self.collector.db.set_tray_display_mode(keys[idx])
+            self._on_tick()
+
+    def _on_hud_enabled_changed(self, row, param):
+        enabled = row.get_active()
+        self.collector.db.set_hud_enabled(enabled)
+        self.sync_hud_visibility()
+
+    def _on_hud_mode_changed(self, row, param):
+        idx = row.get_selected()
+        if hasattr(self, "hud_keys") and 0 <= idx < len(self.hud_keys):
+            self.collector.db.set_hud_display_mode(self.hud_keys[idx])
+            if self.hud_window and self.hud_window.get_visible():
+                self.hud_window.update_snapshot(self.collector.get_snapshot())
+
+    def _on_hud_opacity_changed(self, row, param):
+        idx = row.get_selected()
+        if hasattr(self, "hud_opacity_options") and 0 <= idx < len(self.hud_opacity_options):
+            op = self.hud_opacity_options[idx]
+            self.collector.db.set_hud_opacity(op)
+            if self.hud_window:
+                self.hud_window.set_opacity(op / 100.0)
+
+    def sync_hud_visibility(self):
+        enabled = self.collector.db.get_hud_enabled()
+        if enabled:
+            if not self.hud_window:
+                self.hud_window = FloatingHudWindow(
+                    self.app,
+                    self.collector,
+                    on_present_main=self._present_from_hud,
+                    on_toggle_hud=self._on_hud_toggled_from_widget,
+                )
+            self.hud_window.present()
+            self.hud_window.update_snapshot(self.collector.get_snapshot())
+        elif self.hud_window:
+            self.hud_window.set_visible(False)
+
+    def _present_from_hud(self):
+        self.set_visible(True)
+        self.present()
+
+    def _on_hud_toggled_from_widget(self, enabled: bool):
+        if hasattr(self, "hud_enable_row") and self.hud_enable_row:
+            self.hud_enable_row.set_active(enabled)
+
+    def _on_menu_toggle_hud(self, action, param):
+        new_state = not self.collector.db.get_hud_enabled()
+        self.collector.db.set_hud_enabled(new_state)
+        if hasattr(self, "hud_enable_row") and self.hud_enable_row:
+            self.hud_enable_row.set_active(new_state)
+        self.sync_hud_visibility()
 
     def _on_min_to_tray_changed(self, row, param):
         self.collector.db.set_minimize_to_tray(row.get_active())
@@ -1093,11 +1214,28 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Update system tray tooltip & stats
         if hasattr(self.app, "update_tray"):
+            tray_mode = self.collector.db.get_tray_display_mode()
             self.app.update_tray(
                 speeds["normal_down_str"],
                 speeds["vpn_down_str"],
-                bool(vpn.get("tun_active", False))
+                bool(vpn.get("tun_active", False)),
+                snapshot=snapshot,
+                display_mode=tray_mode,
             )
+
+        # Update floating desktop HUD if enabled
+        if self.collector.db.get_hud_enabled():
+            if not self.hud_window:
+                self.hud_window = FloatingHudWindow(
+                    self.app,
+                    self.collector,
+                    on_present_main=self._present_from_hud,
+                    on_toggle_hud=self._on_hud_toggled_from_widget,
+                )
+                self.hud_window.present()
+            self.hud_window.update_snapshot(snapshot)
+        elif self.hud_window and self.hud_window.get_visible():
+            self.hud_window.set_visible(False)
 
         # Usage Breakdown
         _set_lbl(self.val_today_normal, today["normal_total_str"])
@@ -1265,9 +1403,9 @@ class NetworkMonitorApp(Adw.Application):
         if self.tray and self.tray.is_running:
             self.tray.stop()
 
-    def update_tray(self, normal_str: str, vpn_str: str, is_vpn: bool):
+    def update_tray(self, normal_str: str, vpn_str: str, is_vpn: bool, snapshot: Optional[dict] = None, display_mode: str = "speeds_total"):
         if self.tray and self.tray.is_running:
-            self.tray.update_stats(normal_str, vpn_str, is_vpn)
+            self.tray.update_stats(normal_str, vpn_str, is_vpn, snapshot=snapshot, display_mode=display_mode)
 
     def quit_application(self):
         if self.tray:

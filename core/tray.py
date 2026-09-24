@@ -13,6 +13,80 @@ from typing import Callable, Optional
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
+DISPLAY_MODES = [
+    ("speeds_total", "Total Speeds (↓ / ↑)"),
+    ("speeds_split", "Split Speeds (Direct vs VPN)"),
+    ("today_total", "Today Total Usage"),
+    ("today_split", "Today Split Usage (Direct vs VPN)"),
+    ("down_only", "Download Speed Only"),
+    ("up_only", "Upload Speed Only"),
+    ("full_compact", "Full Compact (Speeds + Today)"),
+    ("icon_only", "Icon Only (No Text)"),
+]
+
+
+def format_telemetry_label(
+    mode: str,
+    snapshot: Optional[dict] = None,
+    normal_str: str = "0 B/s",
+    vpn_str: str = "0 B/s",
+    is_vpn: bool = False
+) -> str:
+    """Format live telemetry text according to the selected display mode."""
+    if mode == "icon_only":
+        return ""
+
+    if not snapshot:
+        vpn_icon = "🔒 " if is_vpn else ""
+        if mode == "down_only":
+            return f"{vpn_icon}↓ {normal_str}"
+        elif mode == "up_only":
+            return f"↑ {normal_str}"
+        elif mode == "speeds_split":
+            return f"DIR: {normal_str} | VPN: {vpn_str}"
+        return f"{vpn_icon}↓ {normal_str}  ↑ {vpn_str}"
+
+    speeds = snapshot.get("speeds", {})
+    today = snapshot.get("today_usage", {})
+    vpn = snapshot.get("vpn", snapshot.get("throne", {}))
+    is_vpn = bool(vpn.get("tun_active", False)) if "tun_active" in vpn else is_vpn
+    vpn_icon = "🔒 " if is_vpn else ""
+
+    if mode == "speeds_total":
+        down = speeds.get("total_down_str", "0 B/s")
+        up = speeds.get("total_up_str", "0 B/s")
+        return f"{vpn_icon}↓ {down}  ↑ {up}"
+    elif mode == "speeds_split":
+        nd = speeds.get("normal_down_str", "0 B/s")
+        vd = speeds.get("vpn_down_str", "0 B/s")
+        return f"DIR: {nd} | VPN: {vd}"
+    elif mode == "today_total":
+        tot = today.get("grand_total_str", "0 B")
+        vpn_tot = today.get("vpn_total_str", "0 B")
+        if is_vpn or (today.get("vpn_rx", 0) + today.get("vpn_tx", 0) > 0):
+            return f"Today: {tot} (VPN: {vpn_tot})"
+        return f"Today: {tot}"
+    elif mode == "today_split":
+        nd = today.get("normal_total_str", "0 B")
+        vd = today.get("vpn_total_str", "0 B")
+        return f"Direct: {nd} | VPN: {vd}"
+    elif mode == "down_only":
+        down = speeds.get("total_down_str", "0 B/s")
+        return f"{vpn_icon}↓ {down}"
+    elif mode == "up_only":
+        up = speeds.get("total_up_str", "0 B/s")
+        return f"↑ {up}"
+    elif mode == "full_compact":
+        down = speeds.get("total_down_str", "0 B/s")
+        up = speeds.get("total_up_str", "0 B/s")
+        tot = today.get("grand_total_str", "0 B")
+        return f"{vpn_icon}↓{down} ↑{up} | {tot}"
+    else:
+        down = speeds.get("total_down_str", "0 B/s")
+        up = speeds.get("total_up_str", "0 B/s")
+        return f"{vpn_icon}↓ {down}  ↑ {up}"
+
+
 class TrayController:
     """
     Abstract controller for system tray integration and background persistence.
@@ -34,7 +108,7 @@ class TrayController:
         """Update the tooltip text shown on hover."""
         pass
 
-    def update_stats(self, normal_str: str, vpn_str: str, is_vpn: bool):
+    def update_stats(self, normal_str: str, vpn_str: str, is_vpn: bool, snapshot: Optional[dict] = None, display_mode: str = "speeds_total"):
         """Update live network statistics for the tray."""
         pass
 
@@ -56,6 +130,8 @@ class LinuxDBusTray(TrayController):
         <property name='AttentionIconName' type='s' access='read'/>
         <property name='ItemIsMenu' type='b' access='read'/>
         <property name='ToolTip' type='(sa(iiay)ss)' access='read'/>
+        <property name='XAyatanaLabel' type='s' access='read'/>
+        <property name='XAyatanaLabelGuide' type='s' access='read'/>
         <method name='ContextMenu'>
           <arg type='i' name='x' direction='in'/>
           <arg type='i' name='y' direction='in'/>
@@ -80,6 +156,10 @@ class LinuxDBusTray(TrayController):
         <signal name='NewStatus'>
           <arg type='s' name='status'/>
         </signal>
+        <signal name='XAyatanaNewLabel'>
+          <arg type='s' name='label'/>
+          <arg type='s' name='guide'/>
+        </signal>
       </interface>
     </node>
     """
@@ -90,6 +170,7 @@ class LinuxDBusTray(TrayController):
         self.reg_id = None
         self.owner_id = None
         self.tooltip_text = "NetSplit - Network Monitor"
+        self.current_label = ""
         self._init_sni()
 
     def _init_sni(self):
@@ -130,7 +211,7 @@ class LinuxDBusTray(TrayController):
                 elif prop_name == "Id":
                     return self.GLib.Variant('s', "NetSplit")
                 elif prop_name == "Title":
-                    return self.GLib.Variant('s', "NetSplit")
+                    return self.GLib.Variant('s', self.current_label if self.current_label else "NetSplit")
                 elif prop_name == "Status":
                     return self.GLib.Variant('s', "Active")
                 elif prop_name in ("IconName", "OverlayIconName", "AttentionIconName"):
@@ -139,6 +220,10 @@ class LinuxDBusTray(TrayController):
                     return self.GLib.Variant('b', False)
                 elif prop_name == "ToolTip":
                     return self.GLib.Variant('(sa(iiay)ss)', ("netsplit", [], "NetSplit", self.tooltip_text))
+                elif prop_name == "XAyatanaLabel":
+                    return self.GLib.Variant('s', self.current_label)
+                elif prop_name == "XAyatanaLabelGuide":
+                    return self.GLib.Variant('s', "000.0 MB/s  000.0 MB/s")
                 return None
 
             self.reg_id = self.bus.register_object(
@@ -197,9 +282,49 @@ class LinuxDBusTray(TrayController):
             except Exception:
                 pass
 
-    def update_stats(self, normal_str: str, vpn_str: str, is_vpn: bool):
+    def update_label(self, label: str):
+        """Publish updated telemetry text to GNOME top panel / Ayatana AppIndicator."""
+        if self.current_label == label:
+            return
+        self.current_label = label
+        if self.is_running and self.bus:
+            try:
+                # 1. NewTitle signal (KDE / general SNI)
+                self.bus.emit_signal(
+                    None,
+                    "/StatusNotifierItem",
+                    "org.kde.StatusNotifierItem",
+                    "NewTitle",
+                    None
+                )
+                # 2. XAyatanaNewLabel signal (Ubuntu / GNOME AppIndicator extension)
+                self.bus.emit_signal(
+                    None,
+                    "/StatusNotifierItem",
+                    "org.kde.StatusNotifierItem",
+                    "XAyatanaNewLabel",
+                    self.GLib.Variant("(ss)", (self.current_label, "000.0 MB/s  000.0 MB/s"))
+                )
+                # 3. Standard DBus PropertiesChanged signal
+                changed_props = {
+                    "Title": self.GLib.Variant('s', self.current_label if self.current_label else "NetSplit"),
+                    "XAyatanaLabel": self.GLib.Variant('s', self.current_label)
+                }
+                self.bus.emit_signal(
+                    None,
+                    "/StatusNotifierItem",
+                    "org.freedesktop.DBus.Properties",
+                    "PropertiesChanged",
+                    self.GLib.Variant("(sa{sv}as)", ("org.kde.StatusNotifierItem", changed_props, []))
+                )
+            except Exception:
+                pass
+
+    def update_stats(self, normal_str: str, vpn_str: str, is_vpn: bool, snapshot: Optional[dict] = None, display_mode: str = "speeds_total"):
         vpn_status = "Active" if is_vpn else "Direct"
         self.update_tooltip(f"NetSplit [{vpn_status}]\nDirect: {normal_str}\nVPN: {vpn_str}")
+        new_label = format_telemetry_label(display_mode, snapshot=snapshot, normal_str=normal_str, vpn_str=vpn_str, is_vpn=is_vpn)
+        self.update_label(new_label)
 
     def stop(self):
         if not self.is_running:
@@ -360,9 +485,13 @@ class WindowsTray(TrayController):
             except Exception:
                 pass
 
-    def update_stats(self, normal_str: str, vpn_str: str, is_vpn: bool):
+    def update_stats(self, normal_str: str, vpn_str: str, is_vpn: bool, snapshot: Optional[dict] = None, display_mode: str = "speeds_total"):
         vpn_status = "VPN ON" if is_vpn else "Direct"
-        self.update_tooltip(f"NetSplit ({vpn_status})\nWi-Fi: {normal_str}\nVPN: {vpn_str}")
+        lbl = format_telemetry_label(display_mode, snapshot=snapshot, normal_str=normal_str, vpn_str=vpn_str, is_vpn=is_vpn)
+        if lbl:
+            self.update_tooltip(f"NetSplit ({vpn_status}) - {lbl}\nDirect: {normal_str}\nVPN: {vpn_str}")
+        else:
+            self.update_tooltip(f"NetSplit ({vpn_status})\nDirect: {normal_str}\nVPN: {vpn_str}")
 
     def stop(self):
         if not self.is_running:

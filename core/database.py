@@ -185,6 +185,35 @@ class StatsDatabase:
     def set_exclusive_mode(self, enabled: bool):
         self.set_bool_setting("exclusive_mode", enabled)
 
+    def get_tray_display_mode(self) -> str:
+        return self.get_setting("tray_display_mode", default="speeds_total")
+
+    def set_tray_display_mode(self, mode: str):
+        self.set_setting("tray_display_mode", mode)
+
+    def get_hud_enabled(self) -> bool:
+        return self.get_bool_setting("hud_enabled", default=False)
+
+    def set_hud_enabled(self, enabled: bool):
+        self.set_bool_setting("hud_enabled", enabled)
+
+    def get_hud_display_mode(self) -> str:
+        return self.get_setting("hud_display_mode", default="speeds_total")
+
+    def set_hud_display_mode(self, mode: str):
+        self.set_setting("hud_display_mode", mode)
+
+    def get_hud_opacity(self) -> int:
+        val = self.get_setting("hud_opacity", "90")
+        try:
+            return max(30, min(100, int(val)))
+        except (ValueError, TypeError):
+            return 90
+
+    def set_hud_opacity(self, opacity: int):
+        clamped = max(30, min(100, int(opacity)))
+        self.set_setting("hud_opacity", str(clamped))
+
     def flush(self):
         """Flush any pending buffered traffic deltas into SQLite."""
         with self._lock:

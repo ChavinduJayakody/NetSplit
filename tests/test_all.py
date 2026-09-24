@@ -375,6 +375,10 @@ class TestNetworkToolsAndApi(unittest.TestCase):
         mock_collector.db.get_minimize_to_tray.return_value = True
         mock_collector.db.get_start_minimized.return_value = False
         mock_collector.db.get_tray_enabled.return_value = True
+        mock_collector.db.get_tray_display_mode.return_value = "speeds_total"
+        mock_collector.db.get_hud_enabled.return_value = False
+        mock_collector.db.get_hud_display_mode.return_value = "speeds_total"
+        mock_collector.db.get_hud_opacity.return_value = 90
         mock_collector.db.get_setting.return_value = ""
 
         server = start_web_server(mock_collector, host="127.0.0.1", port=18765)
@@ -883,6 +887,159 @@ class TestPerformanceAndAccuracyOptimizations(unittest.TestCase):
         # Call again without force
         res2 = get_default_gateway_and_iface(force=False)
         self.assertEqual(res1, res2)
+
+
+class TestDesktopHudAndTrayTelemetry(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.db_path = os.path.join(self.temp_dir.name, "test_hud.db")
+        self.db = StatsDatabase(self.db_path)
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_hud_and_tray_settings(self):
+        # Default settings
+        self.assertEqual(self.db.get_tray_display_mode(), "speeds_total")
+        self.assertFalse(self.db.get_hud_enabled())
+        self.assertEqual(self.db.get_hud_display_mode(), "speeds_total")
+        self.assertEqual(self.db.get_hud_opacity(), 90)
+
+        # Update settings
+        self.db.set_tray_display_mode("full_compact")
+        self.assertEqual(self.db.get_tray_display_mode(), "full_compact")
+
+        self.db.set_hud_enabled(True)
+        self.assertTrue(self.db.get_hud_enabled())
+
+        self.db.set_hud_display_mode("today_split")
+        self.assertEqual(self.db.get_hud_display_mode(), "today_split")
+
+        # Opacity clamping between 30 and 100
+        self.db.set_hud_opacity(75)
+        self.assertEqual(self.db.get_hud_opacity(), 75)
+        self.db.set_hud_opacity(150)
+        self.assertEqual(self.db.get_hud_opacity(), 100)
+        self.db.set_hud_opacity(10)
+        self.assertEqual(self.db.get_hud_opacity(), 30)
+
+    def test_format_telemetry_label(self):
+        from core.tray import format_telemetry_label
+
+        snapshot_direct = {
+            "speeds": {
+                "total_down_str": "2.4 MB/s",
+                "total_up_str": "380 KB/s",
+                "normal_down_str": "2.4 MB/s",
+                "normal_up_str": "380 KB/s",
+                "vpn_down_str": "0 B/s",
+                "vpn_up_str": "0 B/s"
+            },
+            "today_usage": {
+                "grand_total_str": "4.8 GB",
+                "normal_total_str": "4.8 GB",
+                "vpn_total_str": "0 B",
+                "vpn_rx": 0,
+                "vpn_tx": 0
+            },
+            "vpn": {"tun_active": False}
+        }
+
+        # speeds_total
+        lbl = format_telemetry_label("speeds_total", snapshot_direct)
+        self.assertIn("↓ 2.4 MB/s", lbl)
+        self.assertIn("↑ 380 KB/s", lbl)
+        self.assertNotIn("🔒", lbl)
+
+        # speeds_split
+        lbl_split = format_telemetry_label("speeds_split", snapshot_direct)
+        self.assertEqual(lbl_split, "DIR: 2.4 MB/s | VPN: 0 B/s")
+
+        # today_total
+        lbl_today = format_telemetry_label("today_total", snapshot_direct)
+        self.assertEqual(lbl_today, "Today: 4.8 GB")
+
+        # today_split
+        lbl_tsplit = format_telemetry_label("today_split", snapshot_direct)
+        self.assertEqual(lbl_tsplit, "Direct: 4.8 GB | VPN: 0 B")
+
+        # down_only
+        lbl_down = format_telemetry_label("down_only", snapshot_direct)
+        self.assertEqual(lbl_down, "↓ 2.4 MB/s")
+
+        # up_only
+        lbl_up = format_telemetry_label("up_only", snapshot_direct)
+        self.assertEqual(lbl_up, "↑ 380 KB/s")
+
+        # full_compact
+        lbl_comp = format_telemetry_label("full_compact", snapshot_direct)
+        self.assertEqual(lbl_comp, "↓2.4 MB/s ↑380 KB/s | 4.8 GB")
+
+        # icon_only
+        lbl_icon = format_telemetry_label("icon_only", snapshot_direct)
+        self.assertEqual(lbl_icon, "")
+
+        # Test VPN Active snapshot has lock icon
+        snapshot_vpn = {
+            "speeds": {
+                "total_down_str": "5.0 MB/s",
+                "total_up_str": "1.0 MB/s",
+                "normal_down_str": "0 B/s",
+                "vpn_down_str": "5.0 MB/s"
+            },
+            "today_usage": {
+                "grand_total_str": "6.0 GB",
+                "normal_total_str": "1.0 GB",
+                "vpn_total_str": "5.0 GB",
+                "vpn_rx": 5000,
+                "vpn_tx": 1000
+            },
+            "vpn": {"tun_active": True}
+        }
+        lbl_vpn = format_telemetry_label("speeds_total", snapshot_vpn)
+        self.assertTrue(lbl_vpn.startswith("🔒"))
+        self.assertIn("↓ 5.0 MB/s", lbl_vpn)
+
+        lbl_vpn_today = format_telemetry_label("today_total", snapshot_vpn)
+        self.assertEqual(lbl_vpn_today, "Today: 6.0 GB (VPN: 5.0 GB)")
+
+    def test_web_server_hud_settings_api(self):
+        from web.server import NetworkMonitorHandler
+        from unittest.mock import MagicMock
+
+        handler = object.__new__(NetworkMonitorHandler)
+        collector = MagicMock()
+        collector.db = self.db
+        handler.collector = collector
+        handler.headers = {"Content-Length": "0"}
+
+        # Test POST update settings for HUD
+        payload = {
+            "tray_display_mode": "speeds_split",
+            "hud_enabled": True,
+            "hud_display_mode": "full_compact",
+            "hud_opacity": 75
+        }
+        sent_response = []
+        handler._send_json_response = lambda d, status=200: sent_response.append((d, status))
+        handler._handle_post_settings(payload)
+
+        self.assertEqual(len(sent_response), 1)
+        self.assertTrue(sent_response[0][0]["success"])
+        self.assertEqual(self.db.get_tray_display_mode(), "speeds_split")
+        self.assertTrue(self.db.get_hud_enabled())
+        self.assertEqual(self.db.get_hud_display_mode(), "full_compact")
+        self.assertEqual(self.db.get_hud_opacity(), 75)
+
+        # Test GET settings returns these fields
+        get_response = []
+        handler._send_json_response = lambda d, status=200: get_response.append((d, status))
+        handler._serve_get_settings()
+        res_data = get_response[0][0]
+        self.assertEqual(res_data["tray_display_mode"], "speeds_split")
+        self.assertTrue(res_data["hud_enabled"])
+        self.assertEqual(res_data["hud_display_mode"], "full_compact")
+        self.assertEqual(res_data["hud_opacity"], 75)
 
 
 if __name__ == "__main__":
