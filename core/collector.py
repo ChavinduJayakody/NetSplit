@@ -17,8 +17,9 @@ from collections import deque
 from typing import Dict, Any, Optional
 import psutil
 
-from core.wifi import get_wifi_details, get_default_gateway_and_iface
+from core.wifi import get_wifi_details, get_default_gateway_and_iface, is_virtual_interface
 from core.ping_probe import PingProbe
+
 from core.vpn_detector import VpnDetector
 from core.database import StatsDatabase
 
@@ -158,8 +159,11 @@ class NetworkCollector:
             start_time = time.monotonic()
             self._sample_traffic(start_time)
 
-            # Wi-Fi link parameters update every 5 seconds (saves CPU vs 3s)
+            # Physical link parameters update every 5 seconds (saves CPU vs 3s)
             if start_time - self.last_wifi_check > 5.0:
+                active_iface, gw = get_default_gateway_and_iface()
+                if active_iface and active_iface != self.wifi_iface:
+                    self.wifi_iface = active_iface
                 wifi_data = get_wifi_details(self.wifi_iface)
                 with self._lock:
                     self.wifi_info = wifi_data
@@ -175,25 +179,32 @@ class NetworkCollector:
         interfaces = self._read_interfaces()
         active_adapter_names = list(interfaces.keys())
 
-        # Resolve physical wifi interface
+        # Resolve physical network interface (LAN or WLAN)
         wifi_stats = interfaces.get(self.wifi_iface)
         if not wifi_stats:
-            # On Windows or Linux if interface name differs, pick best candidate
-            for name, stats in interfaces.items():
-                low = name.lower()
-                if "wi-fi" in low or "wireless" in low or "wlan" in low:
-                    self.wifi_iface = name
-                    wifi_stats = stats
-                    break
+            # Check default route first
+            gw_iface, _ = get_default_gateway_and_iface()
+            if gw_iface and gw_iface in interfaces and not is_virtual_interface(gw_iface):
+                self.wifi_iface = gw_iface
+                wifi_stats = interfaces.get(self.wifi_iface)
+
+            if not wifi_stats:
+                # Find physical LAN or WLAN adapter (skip virtual, tunnel, loopback)
+                for name, stats in interfaces.items():
+                    if not is_virtual_interface(name):
+                        self.wifi_iface = name
+                        wifi_stats = stats
+                        break
+
             if not wifi_stats and interfaces:
-                # Fallback to first non-loopback interface
+                # Fallback to any non-loopback interface
                 for name, stats in interfaces.items():
                     if "lo" not in name.lower() and "loopback" not in name.lower():
                         self.wifi_iface = name
                         wifi_stats = stats
                         break
 
-        # Interface switched? Re-baseline
+        # Interface switched? Re-baseline smoothly without spike
         prev_iface = getattr(self, "prev_wifi_iface", self.wifi_iface)
         if self.wifi_iface != prev_iface:
             self.prev_wifi_rx = None
@@ -202,6 +213,7 @@ class NetworkCollector:
 
         wifi_rx = wifi_stats['rx'] if wifi_stats else 0
         wifi_tx = wifi_stats['tx'] if wifi_stats else 0
+
 
 
         # Determine vpn interface (passing active adapter names to avoid extra discovery calls)

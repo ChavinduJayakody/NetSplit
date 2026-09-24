@@ -298,11 +298,11 @@
 
     <!-- Top Speeds Grid -->
     <div class="grid-dashboard">
-      <!-- Direct Wi-Fi Card -->
+      <!-- Direct Network Card (LAN or Wi-Fi) -->
       <div class="card">
         <div class="card-header">
-          <span class="card-title">Direct Wi-Fi (Normal)</span>
-          <span style="font-size: 1.2rem;">📶</span>
+          <span id="card-direct-title" class="card-title">Direct Network</span>
+          <span style="font-size: 1.2rem;">🌐</span>
         </div>
         <div id="speed-normal-down" class="speed-number color-direct">0.0 KB/s</div>
         <div class="speed-sub">
@@ -332,12 +332,13 @@
         </div>
       </div>
 
-      <!-- Total Combined Wi-Fi Card -->
+      <!-- Total Combined Network Card -->
       <div class="card">
         <div class="card-header">
-          <span class="card-title">Total Wi-Fi (Physical)</span>
+          <span id="card-total-title" class="card-title">Total Network (Physical)</span>
           <span style="font-size: 1.2rem;">⚡</span>
         </div>
+
         <div id="speed-total-down" class="speed-number color-total">0.0 KB/s</div>
         <div class="speed-sub">
           <span>↓ <span id="speed-total-sub-down">0.0 KB/s</span></span>
@@ -370,24 +371,24 @@
       <!-- Wi-Fi & Latency Info Card -->
       <div class="card">
         <div class="card-header">
-          <span class="card-title">Wi-Fi & Diagnostics</span>
-          <span>📡</span>
+          <span id="card-wifi-title" class="card-title">Wi-Fi & Diagnostics</span>
+          <span id="card-wifi-icon">📡</span>
         </div>
         <div class="info-list">
           <div class="info-row">
-            <span class="label">SSID (Network)</span>
+            <span class="label" id="label-ssid">SSID (Network)</span>
             <span class="val" id="info-ssid">--</span>
           </div>
           <div class="info-row">
-            <span class="label">Signal Quality</span>
+            <span class="label" id="label-signal">Signal Quality</span>
             <span class="val" id="info-signal">--%</span>
           </div>
           <div class="info-row">
-            <span class="label">Link Bitrate</span>
+            <span class="label" id="label-rate">Link Bitrate</span>
             <span class="val" id="info-rate">--</span>
           </div>
           <div class="info-row">
-            <span class="label">Band & Channel</span>
+            <span class="label" id="label-band">Band & Channel</span>
             <span class="val" id="info-band">--</span>
           </div>
           <div class="info-row">
@@ -552,15 +553,48 @@
       document.getElementById('today-vpn-val').textContent = today.vpn_total_str;
       document.getElementById('today-total-val').textContent = today.grand_total_str;
 
-      // 2. Badges
+      // 2. Dynamic Titles & Badges (LAN vs Wi-Fi)
+      const isLan = (wifi.conn_type === 'LAN');
+
+      const directTitle = document.getElementById('card-direct-title');
+      if (directTitle) {
+        directTitle.textContent = isLan ? "Direct LAN" : "Direct Wi-Fi";
+      }
+      const totalTitle = document.getElementById('card-total-title');
+      if (totalTitle) {
+        totalTitle.textContent = isLan ? "Total Network (LAN)" : "Total Network (Wi-Fi)";
+      }
+
+      const wifiCardTitle = document.getElementById('card-wifi-title');
+      const wifiCardIcon = document.getElementById('card-wifi-icon');
+      if (wifiCardTitle) {
+        wifiCardTitle.textContent = isLan ? "Wired LAN & Diagnostics" : "Wi-Fi & Diagnostics";
+      }
+      if (wifiCardIcon) {
+        wifiCardIcon.textContent = isLan ? "🔌" : "📡";
+      }
+
+      const labelSsid = document.getElementById('label-ssid');
+      const labelSignal = document.getElementById('label-signal');
+      const labelRate = document.getElementById('label-rate');
+      const labelBand = document.getElementById('label-band');
+      if (labelSsid) labelSsid.textContent = isLan ? "Interface / Connection" : "SSID (Network)";
+      if (labelSignal) labelSignal.textContent = isLan ? "Cable / Link State" : "Signal Quality";
+      if (labelRate) labelRate.textContent = isLan ? "Port Link Speed" : "Link Bitrate";
+      if (labelBand) labelBand.textContent = isLan ? "Duplex / Specs" : "Band & Channel";
+
       const wifiBadge = document.getElementById('badge-wifi');
       const wifiSsidSpan = document.getElementById('wifi-ssid-badge');
       if (wifi.connected) {
         wifiBadge.className = "badge badge-vpn-active";
-        wifiSsidSpan.textContent = wifi.ssid;
+        if (isLan) {
+          wifiSsidSpan.textContent = "LAN: " + (wifi.bitrate && wifi.bitrate !== "N/A" ? wifi.bitrate : "Connected");
+        } else {
+          wifiSsidSpan.textContent = wifi.ssid;
+        }
       } else {
         wifiBadge.className = "badge badge-vpn-inactive";
-        wifiSsidSpan.textContent = "Wi-Fi Disconnected";
+        wifiSsidSpan.textContent = isLan ? "LAN Disconnected" : "Wi-Fi Disconnected";
       }
 
       const vpnBadge = document.getElementById('badge-vpn');
@@ -575,9 +609,15 @@
 
       // 3. Wi-Fi & Diagnostics
       document.getElementById('info-ssid').textContent = wifi.ssid || "--";
-      document.getElementById('info-signal').textContent = (wifi.signal || 0) + "% " + (wifi.bars || "");
-      document.getElementById('info-rate').textContent = wifi.bitrate || "--";
-      document.getElementById('info-band').textContent = (wifi.band || "--") + " (Ch " + (wifi.channel || "--") + ")";
+      if (isLan) {
+        document.getElementById('info-signal').textContent = wifi.connected ? (wifi.bars + " (Connected)") : "Disconnected";
+        document.getElementById('info-rate').textContent = wifi.bitrate || "--";
+        document.getElementById('info-band').textContent = wifi.band || "--";
+      } else {
+        document.getElementById('info-signal').textContent = (wifi.signal || 0) + "% " + (wifi.bars || "");
+        document.getElementById('info-rate').textContent = wifi.bitrate || "--";
+        document.getElementById('info-band').textContent = (wifi.band || "--") + " (Ch " + (wifi.channel || "--") + ")";
+      }
 
       const gwPing = ping.gateway_ping_ms !== null ? ping.gateway_ping_ms.toFixed(2) + " ms" : "--";
       const inetPing = ping.internet_ping_ms !== null ? ping.internet_ping_ms.toFixed(2) + " ms" : "--";

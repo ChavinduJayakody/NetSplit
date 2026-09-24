@@ -260,9 +260,10 @@ class MainWindow(Adw.ApplicationWindow):
         self.overview_page = self._build_overview_page()
         self.view_stack.add_titled_with_icon(self.overview_page, "overview", "Live Monitor", "network-transmit-receive-symbolic")
 
-        # 2. Wi-Fi & Diagnostics Page
+        # 2. Network & Diagnostics Page (Wi-Fi and LAN)
         self.wifi_page = self._build_wifi_page()
-        self.view_stack.add_titled_with_icon(self.wifi_page, "wifi", "Wi-Fi & Health", "network-wireless-symbolic")
+        self.view_stack.add_titled_with_icon(self.wifi_page, "wifi", "Network & Health", "network-wireless-symbolic")
+
 
         # 3. VPN & Proxy Page (Universal for Throne, NetMod, Netch, Xray, etc.)
         self.vpn_page = self._build_vpn_page()
@@ -338,13 +339,14 @@ class MainWindow(Adw.ApplicationWindow):
         # 3 Main Speed Cards
         cards_grid = Gtk.Grid(column_spacing=12, row_spacing=12, column_homogeneous=True)
 
-        # Card 1: Direct Wi-Fi
+        # Card 1: Direct Network (LAN or Wi-Fi)
         c1 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         c1.add_css_class("metric-card")
         h1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL)
-        t1 = Gtk.Label(label="Direct Wi-Fi", halign=Gtk.Align.START)
-        t1.add_css_class("card-title")
-        h1.append(t1)
+        self.card_direct_title = Gtk.Label(label="Direct Network", halign=Gtk.Align.START)
+        self.card_direct_title.add_css_class("card-title")
+        h1.append(self.card_direct_title)
+
         self.norm_down_lbl = Gtk.Label(label="0.0 KB/s", halign=Gtk.Align.START)
         self.norm_down_lbl.add_css_class("speed-value-normal")
         self.norm_sub_lbl = Gtk.Label(label="↓ 0.0 KB/s   ↑ 0.0 KB/s", halign=Gtk.Align.START)
@@ -488,39 +490,40 @@ class MainWindow(Adw.ApplicationWindow):
         box.set_margin_top(12)
         box.set_margin_bottom(24)
 
-        wifi_group = Adw.PreferencesGroup(title="Wi-Fi Connection Details")
+        self.group_network = Adw.PreferencesGroup(title="Connection Details")
 
         self.row_ssid = Adw.ActionRow(title="Network SSID")
         self.val_ssid = Gtk.Label(label="Loading...", halign=Gtk.Align.END)
         self.val_ssid.add_css_class("info-val")
         self.row_ssid.add_suffix(self.val_ssid)
-        wifi_group.add(self.row_ssid)
+        self.group_network.add(self.row_ssid)
 
         self.row_signal = Adw.ActionRow(title="Signal Strength")
         self.val_signal = Gtk.Label(label="0%", halign=Gtk.Align.END)
         self.val_signal.add_css_class("info-val")
         self.row_signal.add_suffix(self.val_signal)
-        wifi_group.add(self.row_signal)
+        self.group_network.add(self.row_signal)
 
         self.row_bitrate = Adw.ActionRow(title="Link Bitrate (Capability)")
         self.val_bitrate = Gtk.Label(label="N/A", halign=Gtk.Align.END)
         self.val_bitrate.add_css_class("info-val")
         self.row_bitrate.add_suffix(self.val_bitrate)
-        wifi_group.add(self.row_bitrate)
+        self.group_network.add(self.row_bitrate)
 
         self.row_band = Adw.ActionRow(title="Frequency Band and Channel")
         self.val_band = Gtk.Label(label="N/A", halign=Gtk.Align.END)
         self.val_band.add_css_class("info-val")
         self.row_band.add_suffix(self.val_band)
-        wifi_group.add(self.row_band)
+        self.group_network.add(self.row_band)
 
         self.row_security = Adw.ActionRow(title="Security / Encryption")
         self.val_security = Gtk.Label(label="N/A", halign=Gtk.Align.END)
         self.val_security.add_css_class("info-val")
         self.row_security.add_suffix(self.val_security)
-        wifi_group.add(self.row_security)
+        self.group_network.add(self.row_security)
 
-        box.append(wifi_group)
+        box.append(self.group_network)
+
 
         diag_group = Adw.PreferencesGroup(title="Diagnostics and Latency")
 
@@ -934,6 +937,10 @@ class MainWindow(Adw.ApplicationWindow):
             if widget.get_label() != txt:
                 widget.set_label(txt)
 
+        conn_type = wifi.get("conn_type", "WLAN")
+        is_lan = conn_type == "LAN"
+        is_connected = wifi.get("connected", False)
+
         # 1. Update Header & Badge
         if vpn["tun_active"]:
             proto = vpn.get('profile_type', 'ACTIVE')
@@ -950,9 +957,19 @@ class MainWindow(Adw.ApplicationWindow):
             _set_lbl(self.card_vpn_title, "VPN / Proxy")
 
         # 2. Update Quick Status Strip
-        wifi_ssid = wifi.get("ssid", "Disconnected")
-        wifi_sig = wifi.get("signal", 0)
-        _set_lbl(self.pill_wifi_lbl, f"Wi-Fi: {wifi_ssid} ({wifi_sig}%)")
+        if is_lan:
+            lan_status = "Connected" if is_connected else "Disconnected"
+            lan_speed = wifi.get("bitrate", "N/A")
+            if is_connected:
+                _set_lbl(self.pill_wifi_lbl, f"LAN: {lan_status} ({lan_speed})")
+            else:
+                _set_lbl(self.pill_wifi_lbl, "LAN: Disconnected")
+            _set_lbl(self.card_direct_title, "Direct LAN")
+        else:
+            wifi_ssid = wifi.get("ssid", "Disconnected")
+            wifi_sig = wifi.get("signal", 0)
+            _set_lbl(self.pill_wifi_lbl, f"Wi-Fi: {wifi_ssid} ({wifi_sig}%)")
+            _set_lbl(self.card_direct_title, "Direct Wi-Fi")
 
         inet_p = f"{ping['internet_ping_ms']:.1f}ms" if ping.get('internet_ping_ms') is not None else "--"
         _set_lbl(self.pill_ping_lbl, f"Ping: {inet_p}")
@@ -986,7 +1003,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.vpn_prog_bar.set_fraction(min(1.0, max(0.0, ratio)))
         vpn_pct = int(ratio * 100)
         direct_pct = 100 - vpn_pct
-        _set_lbl(self.split_pct_lbl, f"{direct_pct}% Direct   |   {vpn_pct}% VPN")
+        direct_name = "LAN" if is_lan else "Direct"
+        _set_lbl(self.split_pct_lbl, f"{direct_pct}% {direct_name}   |   {vpn_pct}% VPN")
 
         # Update system tray tooltip & stats
         if hasattr(self.app, "update_tray"):
@@ -1001,15 +1019,36 @@ class MainWindow(Adw.ApplicationWindow):
         _set_lbl(self.val_today_vpn, today["vpn_total_str"])
         _set_lbl(self.val_today_tot, today["grand_total_str"])
         _set_lbl(self.val_sess_tot,
-            f"{session['grand_total_str']}  (Direct: {session['normal_total_str']}  |  VPN: {session['vpn_total_str']})"
+            f"{session['grand_total_str']}  ({direct_name}: {session['normal_total_str']}  |  VPN: {session['vpn_total_str']})"
         )
 
-        # 4. Wi-Fi & Diagnostics
-        _set_lbl(self.val_ssid, wifi.get("ssid", "Disconnected"))
-        _set_lbl(self.val_signal, f"{wifi.get('signal', 0)}%  ({wifi.get('bars', '____')})")
-        _set_lbl(self.val_bitrate, wifi.get("bitrate", "N/A"))
-        _set_lbl(self.val_band, f"{wifi.get('band', 'N/A')} (Ch {wifi.get('channel', 'N/A')})")
-        _set_lbl(self.val_security, wifi.get("security", "N/A"))
+        # 4. Connection Details (LAN or Wi-Fi)
+        if is_lan:
+            if hasattr(self, "group_network"):
+                self.group_network.set_title("Wired Ethernet (LAN) Details")
+            self.row_ssid.set_title("Interface / Link")
+            self.row_signal.set_title("Physical Connection State")
+            self.row_bitrate.set_title("Link Speed / Capability")
+            self.row_band.set_title("Duplex Mode / Standard")
+            self.row_security.set_title("Port Security / Cable")
+            _set_lbl(self.val_ssid, wifi.get("ssid", "Wired Connection"))
+            _set_lbl(self.val_signal, "Connected (100%)" if is_connected else "Disconnected (0%)")
+            _set_lbl(self.val_bitrate, wifi.get("bitrate", "N/A"))
+            _set_lbl(self.val_band, wifi.get("band", "Ethernet"))
+            _set_lbl(self.val_security, wifi.get("security", "Wired (Physical)"))
+        else:
+            if hasattr(self, "group_network"):
+                self.group_network.set_title("Wi-Fi Connection Details")
+            self.row_ssid.set_title("Network SSID")
+            self.row_signal.set_title("Signal Strength")
+            self.row_bitrate.set_title("Link Bitrate (Capability)")
+            self.row_band.set_title("Frequency Band and Channel")
+            self.row_security.set_title("Security / Encryption")
+            _set_lbl(self.val_ssid, wifi.get("ssid", "Disconnected"))
+            _set_lbl(self.val_signal, f"{wifi.get('signal', 0)}%  ({wifi.get('bars', '____')})")
+            _set_lbl(self.val_bitrate, wifi.get("bitrate", "N/A"))
+            _set_lbl(self.val_band, f"{wifi.get('band', 'N/A')} (Ch {wifi.get('channel', 'N/A')})")
+            _set_lbl(self.val_security, wifi.get("security", "N/A"))
 
         gw_lat = f"{ping.get('gateway_ping_ms'):.2f} ms" if ping.get("gateway_ping_ms") is not None else "--"
         inet_lat = f"{ping.get('internet_ping_ms'):.2f} ms" if ping.get("internet_ping_ms") is not None else "--"
@@ -1020,6 +1059,7 @@ class MainWindow(Adw.ApplicationWindow):
         diag_pub_ip = raw_pub_ip if (not mask_setting or self.reveal_public_ip) else mask_ip(raw_pub_ip)
         _set_lbl(self.val_local_ip, diag_local_ip)
         _set_lbl(self.val_public_ip, diag_pub_ip)
+
 
         # 5. VPN Status & Apps
         _set_lbl(self.val_vpn_state, vpn.get("status_text", "N/A"))

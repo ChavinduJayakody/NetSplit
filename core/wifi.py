@@ -1,9 +1,9 @@
 """
-Wi-Fi probe module to retrieve current Wi-Fi SSID, signal, bitrate, and channel.
-Cross-platform support for Linux (nmcli) and Windows (netsh).
+Network link diagnostics module.
+Detects whether the physical connection is LAN (Ethernet) or WLAN (Wi-Fi),
+and retrieves SSID/Link State, bitrate, signal strength, channel/band, and security.
 
-Optimized with:
-- Subprocess caching (gateway, interface IP, and Wi-Fi link status) to minimize CPU usage.
+Cross-platform support for Linux (sysfs/nmcli) and Windows (netsh/psutil).
 """
 
 import subprocess
@@ -11,6 +11,7 @@ import re
 import socket
 import struct
 import platform
+import os
 import time
 from typing import Dict, Any, Optional
 import psutil
@@ -18,20 +19,65 @@ import psutil
 # Cache stores to avoid repetitive subprocess execution
 _gateway_cache: tuple[Optional[str], Optional[str]] = (None, None)
 _gateway_last_check: float = 0.0
-_GATEWAY_CACHE_TTL: float = 15.0  # seconds
+_GATEWAY_CACHE_TTL: float = 8.0  # seconds
 
 _ip_cache: Dict[str, tuple[Optional[str], float]] = {}
 _IP_CACHE_TTL: float = 10.0  # seconds
 
-_wifi_cache: Optional[Dict[str, Any]] = None
-_wifi_last_check: float = 0.0
-_WIFI_CACHE_TTL: float = 4.0  # seconds
+_net_cache: Optional[Dict[str, Any]] = None
+_net_last_check: float = 0.0
+_NET_CACHE_TTL: float = 3.0  # seconds
+
+
+def is_virtual_interface(iface: str) -> bool:
+    """Check if an interface is a virtual adapter (TUN, TAP, loopback, docker, etc.)."""
+    if not iface:
+        return True
+    low = iface.lower()
+    if low in ("lo", "loopback"):
+        return True
+    if low.startswith(("br", "docker", "virbr", "veth", "vmnet", "vboxnet", "tun", "tap", "wg", "ppp", "dummy")):
+        return True
+    for kw in ["tun", "tap", "wg", "wireguard", "sing", "throne", "clash", "ppp",
+               "dummy", "docker", "veth", "virbr", "vmnet", "vboxnet", "hyper-v", "wintun",
+               "tailscale", "zerotier"]:
+        if kw in low:
+            return True
+
+    if platform.system() != "Windows":
+        sys_path = f"/sys/class/net/{iface}"
+        if os.path.exists(sys_path) and os.path.islink(sys_path):
+            try:
+                target = os.readlink(sys_path)
+                if "virtual" in target:
+                    return True
+            except Exception:
+                pass
+    return False
+
+
+def is_wireless_interface(iface: str) -> bool:
+    """Check if an interface is a wireless (Wi-Fi) adapter."""
+    if not iface:
+        return False
+
+    low = iface.lower()
+    if platform.system() != "Windows":
+        sys_path = f"/sys/class/net/{iface}"
+        if os.path.exists(os.path.join(sys_path, "wireless")) or os.path.exists(os.path.join(sys_path, "phy80211")):
+            return True
+        if not os.path.exists(sys_path):
+            # Fallback to standard Linux naming conventions (systemd predictable names)
+            return low.startswith(("wl", "wlan", "wifi", "ath", "ra"))
+        return False
+    else:
+        return any(k in low for k in ["wi-fi", "wireless", "wlan", "802.11"])
 
 
 def get_default_gateway_and_iface(force: bool = False) -> tuple[Optional[str], Optional[str]]:
     """
-    Find the default network interface and its gateway IP.
-    Supports Linux and Windows with caching to prevent high CPU subprocess churn.
+    Find the active default physical network interface and its gateway IP.
+    Prioritizes real physical connections (LAN or WLAN) over virtual VPN tunnels.
     """
     global _gateway_cache, _gateway_last_check
     now = time.monotonic()
@@ -41,39 +87,78 @@ def get_default_gateway_and_iface(force: bool = False) -> tuple[Optional[str], O
     if platform.system() == "Windows":
         try:
             res = subprocess.run(['route', 'print', '0.0.0.0'], capture_output=True, text=True, timeout=2)
+            candidates = []
             for line in res.stdout.splitlines():
                 parts = line.strip().split()
                 if len(parts) >= 4 and parts[0] == "0.0.0.0" and parts[1] == "0.0.0.0":
-                    gateway = parts[2]
+                    gw = parts[2]
                     ip = parts[3]
                     for name, addrs in psutil.net_if_addrs().items():
+                        if is_virtual_interface(name):
+                            continue
                         for addr in addrs:
                             if addr.address == ip:
-                                _gateway_cache = (name, gateway)
-                                _gateway_last_check = now
-                                return _gateway_cache
-                    _gateway_cache = ("Wi-Fi", gateway)
-                    _gateway_last_check = now
-                    return _gateway_cache
+                                candidates.append((name, gw))
+                                break
+            if candidates:
+                # Prefer Ethernet if both exist, otherwise Wi-Fi
+                candidates.sort(key=lambda c: 0 if not is_wireless_interface(c[0]) else 1)
+                _gateway_cache = candidates[0]
+                _gateway_last_check = now
+                return _gateway_cache
         except Exception:
             pass
-        _gateway_cache = ("Wi-Fi", None)
+
+        # Fallback for Windows
+        for name, stats in psutil.net_if_stats().items():
+            if not is_virtual_interface(name) and stats.isup:
+                _gateway_cache = (name, None)
+                _gateway_last_check = now
+                return _gateway_cache
+
+        _gateway_cache = ("Ethernet" if not is_wireless_interface("Ethernet") else "Wi-Fi", None)
         _gateway_last_check = now
         return _gateway_cache
+
     else:
-        # Linux: fast /proc/net/route parsing (zero subprocesses)
+        # Linux: Parse /proc/net/route for physical default routes
+        found_phys = []
         try:
             with open('/proc/net/route', 'r') as f:
                 for line in f.readlines()[1:]:
                     fields = line.strip().split()
                     if len(fields) >= 4 and fields[1] == '00000000' and (int(fields[3], 16) & 2):
                         iface = fields[0]
-                        gw_ip = socket.inet_ntoa(struct.pack('<L', int(fields[2], 16)))
-                        _gateway_cache = (iface, gw_ip)
-                        _gateway_last_check = now
-                        return _gateway_cache
+                        if not is_virtual_interface(iface):
+                            gw_ip = socket.inet_ntoa(struct.pack('<L', int(fields[2], 16)))
+                            found_phys.append((iface, gw_ip))
         except Exception:
             pass
+
+        if found_phys:
+            # If multiple routes, prioritize LAN (Ethernet) over WLAN, or lowest metric
+            found_phys.sort(key=lambda item: 0 if not is_wireless_interface(item[0]) else 1)
+            _gateway_cache = found_phys[0]
+            _gateway_last_check = now
+            return _gateway_cache
+
+        # Fallback: find any physical interface with operstate == 'up'
+        net_dir = "/sys/class/net"
+        if os.path.exists(net_dir):
+            try:
+                for iface in sorted(os.listdir(net_dir)):
+                    if is_virtual_interface(iface):
+                        continue
+                    oper_file = os.path.join(net_dir, iface, "operstate")
+                    if os.path.exists(oper_file):
+                        with open(oper_file, "r") as f:
+                            if f.read().strip() == "up":
+                                _gateway_cache = (iface, None)
+                                _gateway_last_check = now
+                                return _gateway_cache
+            except Exception:
+                pass
+
         _gateway_cache = ("wlan0", None)
         _gateway_last_check = now
         return _gateway_cache
@@ -96,9 +181,8 @@ def get_interface_ip(iface: str, force: bool = False) -> Optional[str]:
                     found_ip = addr.address
                     break
         if not found_ip:
-            # Fallback: check all interfaces for a non-loopback IPv4
             for name, addr_list in addrs.items():
-                if "lo" in name.lower() or "loopback" in name.lower():
+                if is_virtual_interface(name):
                     continue
                 for addr in addr_list:
                     if addr.family == socket.AF_INET and not addr.address.startswith("127."):
@@ -113,10 +197,102 @@ def get_interface_ip(iface: str, force: bool = False) -> Optional[str]:
     return found_ip
 
 
+def _get_lan_details_linux(iface: str) -> Dict[str, Any]:
+    """Fetch wired Ethernet (LAN) details directly from Linux sysfs."""
+    sys_path = f"/sys/class/net/{iface}"
+    operstate = "down"
+    carrier = "0"
+    speed = "N/A"
+    duplex = "full"
+
+    if os.path.exists(sys_path):
+        try:
+            oper_file = os.path.join(sys_path, "operstate")
+            if os.path.exists(oper_file):
+                with open(oper_file, "r") as f:
+                    operstate = f.read().strip().lower()
+
+            carrier_file = os.path.join(sys_path, "carrier")
+            if os.path.exists(carrier_file):
+                with open(carrier_file, "r") as f:
+                    carrier = f.read().strip()
+
+            speed_file = os.path.join(sys_path, "speed")
+            if os.path.exists(speed_file):
+                with open(speed_file, "r") as f:
+                    s = f.read().strip()
+                    if s.isdigit():
+                        speed = f"{s} Mbit/s"
+
+            duplex_file = os.path.join(sys_path, "duplex")
+            if os.path.exists(duplex_file):
+                with open(duplex_file, "r") as f:
+                    duplex = f.read().strip().lower()
+        except Exception:
+            pass
+
+    is_connected = operstate == "up" or carrier == "1"
+    conn_name = f"Wired Ethernet ({iface})" if is_connected else "Disconnected"
+    band_label = f"Ethernet ({duplex.capitalize()} Duplex)" if is_connected else "Ethernet"
+
+    return {
+        "connected": is_connected,
+        "conn_type": "LAN",
+        "type_label": "Ethernet (LAN)",
+        "ssid": conn_name,
+        "bssid": "N/A",
+        "signal": 100 if is_connected else 0,
+        "bars": "████" if is_connected else "____",
+        "bitrate": speed,
+        "channel": "N/A (Cable)",
+        "band": band_label,
+        "security": "Wired (Physical)" if is_connected else "N/A",
+    }
+
+
+def _get_lan_details_windows(iface: str) -> Dict[str, Any]:
+    """Fetch wired Ethernet (LAN) details using psutil on Windows."""
+    is_connected = False
+    speed = "N/A"
+    try:
+        stats_dict = psutil.net_if_stats()
+        if iface in stats_dict:
+            st = stats_dict[iface]
+            is_connected = st.isup
+            if st.speed > 0:
+                speed = f"{st.speed} Mbit/s"
+        else:
+            for name, st in stats_dict.items():
+                if not is_wireless_interface(name) and not is_virtual_interface(name) and st.isup:
+                    is_connected = True
+                    if st.speed > 0:
+                        speed = f"{st.speed} Mbit/s"
+                    break
+    except Exception:
+        pass
+
+    conn_name = "Wired Connection" if is_connected else "Disconnected"
+    return {
+        "connected": is_connected,
+        "conn_type": "LAN",
+        "type_label": "Ethernet (LAN)",
+        "ssid": conn_name,
+        "bssid": "N/A",
+        "signal": 100 if is_connected else 0,
+        "bars": "████" if is_connected else "____",
+        "bitrate": speed,
+        "channel": "N/A (Cable)",
+        "band": "Ethernet (LAN)",
+        "security": "Wired (Physical)" if is_connected else "N/A",
+    }
+
+
 def _get_wifi_details_windows() -> Dict[str, Any]:
     """Fetch Wi-Fi information using Windows netsh wlan."""
     info = {
         "connected": False,
+        "conn_type": "WLAN",
+        "type_label": "Wi-Fi (WLAN)",
         "ssid": "Disconnected",
         "bssid": "N/A",
         "signal": 0,
@@ -174,6 +350,8 @@ def _get_wifi_details_linux(iface: str) -> Dict[str, Any]:
     """Fetch Wi-Fi information using Linux nmcli."""
     info = {
         "connected": False,
+        "conn_type": "WLAN",
+        "type_label": "Wi-Fi (WLAN)",
         "ssid": "Disconnected",
         "bssid": "N/A",
         "signal": 0,
@@ -224,24 +402,33 @@ def _get_wifi_details_linux(iface: str) -> Dict[str, Any]:
 
 def get_wifi_details(iface: str = "wlan0", force: bool = False) -> Dict[str, Any]:
     """
-    Get Wi-Fi details cross-platform with short caching to reduce CPU spikes.
+    Get physical network details (LAN or WLAN) cross-platform.
+    Maintains full backward compatibility with all existing wifi keys while adding conn_type.
     """
-    global _wifi_cache, _wifi_last_check
+    global _net_cache, _net_last_check
     now = time.monotonic()
-    if not force and _wifi_cache is not None and (now - _wifi_last_check < _WIFI_CACHE_TTL):
-        return dict(_wifi_cache)
+    if not force and _net_cache is not None and (now - _net_last_check < _NET_CACHE_TTL):
+        return dict(_net_cache)
 
-    if platform.system() == "Windows":
-        details = _get_wifi_details_windows()
-        details["interface"] = iface or "Wi-Fi"
+    is_windows = platform.system() == "Windows"
+    is_wlan = is_wireless_interface(iface)
+
+    if is_wlan:
+        details = _get_wifi_details_windows() if is_windows else _get_wifi_details_linux(iface)
     else:
-        details = _get_wifi_details_linux(iface)
-        details["interface"] = iface
+        # Wired LAN interface (eno1, eth0, Ethernet, etc.)
+        details = _get_lan_details_windows(iface) if is_windows else _get_lan_details_linux(iface)
+
+    details["interface"] = iface or ("Wi-Fi" if is_wlan else "Ethernet")
 
     _, gw = get_default_gateway_and_iface()
     details["gateway_ip"] = gw
     details["local_ip"] = get_interface_ip(details["interface"])
 
-    _wifi_cache = details
-    _wifi_last_check = now
+    _net_cache = details
+    _net_last_check = now
     return dict(details)
+
+
+# Backwards compatibility alias
+get_network_details = get_wifi_details

@@ -12,7 +12,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.database import StatsDatabase
 from core.throne import ThroneMonitor
-from core.wifi import get_wifi_details, get_default_gateway_and_iface
+from core.wifi import (
+    get_wifi_details,
+    get_default_gateway_and_iface,
+    is_wireless_interface,
+    is_virtual_interface,
+    _get_lan_details_linux,
+)
 from core.collector import NetworkCollector, format_bytes, format_speed
 
 
@@ -105,6 +111,37 @@ class TestWifiAndGateway(unittest.TestCase):
         self.assertIn("connected", details)
         self.assertIn("ssid", details)
         self.assertIn("signal", details)
+        self.assertIn("conn_type", details)
+        self.assertIn(details["conn_type"], ["LAN", "WLAN"])
+        self.assertIn("type_label", details)
+        self.assertIn(details["type_label"], ["Ethernet (LAN)", "Wi-Fi (WLAN)"])
+
+    def test_virtual_interface_detection(self):
+        virtual_ifaces = ["lo", "tun0", "throne-tun", "wg0", "tap0", "docker0", "br0", "veth01"]
+        for iface in virtual_ifaces:
+            self.assertTrue(is_virtual_interface(iface), f"{iface} should be identified as virtual")
+
+        physical_ifaces = ["eth0", "eno1", "enp3s0", "wlan0", "wlp2s0"]
+        for iface in physical_ifaces:
+            self.assertFalse(is_virtual_interface(iface), f"{iface} should not be identified as virtual")
+
+    def test_wireless_vs_lan_interface_detection(self):
+        self.assertTrue(is_wireless_interface("wlan0"))
+        self.assertTrue(is_wireless_interface("wlp2s0"))
+        self.assertFalse(is_wireless_interface("eno1"))
+        self.assertFalse(is_wireless_interface("eth0"))
+
+    def test_lan_details_structure(self):
+        # Test wired LAN details parser
+        lan_info = _get_lan_details_linux("eno1")
+        required_keys = [
+            "connected", "conn_type", "type_label", "ssid", "bssid",
+            "signal", "bars", "bitrate", "channel", "band", "security"
+        ]
+        for key in required_keys:
+            self.assertIn(key, lan_info)
+        self.assertEqual(lan_info["conn_type"], "LAN")
+        self.assertEqual(lan_info["type_label"], "Ethernet (LAN)")
 
 
 class TestThroneIntegration(unittest.TestCase):
