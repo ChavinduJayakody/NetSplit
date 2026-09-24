@@ -262,6 +262,13 @@ jobs:
           name: arch-linux-pkg
           path: release_files
 
+      - name: Package GNOME Shell Extension
+        run: |
+          mkdir -p release_files
+          zip -j "release_files/netsplit-hud@chavindujayakody.github.io.shell-extension.zip" gnome-extension/*
+          cd release_files
+          sha256sum "netsplit-hud@chavindujayakody.github.io.shell-extension.zip" > "netsplit-hud@chavindujayakody.github.io.shell-extension.zip.sha256"
+
       - name: Generate Consolidated Checksums
         run: |
           cd release_files
@@ -289,6 +296,7 @@ jobs:
             release_files/NetSplit-Windows-x64.exe
             release_files/NetSplit-Linux-x86_64.AppImage
             release_files/NetSplit-Linux-x86_64.pkg.tar.zst
+            release_files/netsplit-hud@chavindujayakody.github.io.shell-extension.zip
             release_files/SHA256SUMS.txt
           generate_release_notes: true
           draft: false

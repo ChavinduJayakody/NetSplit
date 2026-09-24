@@ -13,6 +13,7 @@ icon_path = os.path.join(project_root, "assets", "netsplit.ico" if is_windows el
 datas = [
     (os.path.join(project_root, "assets"), "assets"),
     (os.path.join(project_root, "web", "static"), "web/static"),
+    (os.path.join(project_root, "gnome-extension"), "gnome-extension"),
     (os.path.join(project_root, "netsplit.desktop"), "."),
 ]
 

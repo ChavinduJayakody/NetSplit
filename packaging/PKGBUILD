@@ -32,7 +32,7 @@ package() {
 
     # Install application files
     install -dm755 "${pkgdir}/usr/lib/${pkgname}"
-    cp -r core gui web assets main.py "${pkgdir}/usr/lib/${pkgname}/"
+    cp -r core gui web assets gnome-extension main.py "${pkgdir}/usr/lib/${pkgname}/"
 
     # Launcher script
     install -dm755 "${pkgdir}/usr/bin"
