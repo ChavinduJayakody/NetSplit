@@ -847,7 +847,7 @@ class MainWindow(Adw.ApplicationWindow):
 
     # --- Cairo Waveform Drawing ---
     def _draw_speed_graph(self, area, cr, width, height):
-        history = list(self.collector.speed_history)
+        history = self.collector.speed_history
 
         is_dark = Adw.StyleManager.get_default().get_dark()
         bg_r, bg_g, bg_b, bg_a = (0.04, 0.06, 0.1, 0.85) if is_dark else (0.94, 0.95, 0.98, 0.95)
@@ -929,49 +929,55 @@ class MainWindow(Adw.ApplicationWindow):
         wifi = snapshot["wifi"]
         ping = snapshot["ping"]
         vpn = snapshot.get("vpn", snapshot.get("throne", {}))
-        throne = vpn
+
+        def _set_lbl(widget, txt: str):
+            if widget.get_label() != txt:
+                widget.set_label(txt)
 
         # 1. Update Header & Badge
         if vpn["tun_active"]:
             proto = vpn.get('profile_type', 'ACTIVE')
-            self.vpn_badge.set_label(f"VPN: {proto}")
-            self.vpn_badge.remove_css_class("badge-vpn-inactive")
-            self.vpn_badge.add_css_class("badge-vpn-active")
-            self.card_vpn_title.set_label(f"VPN / Proxy ({proto})")
+            _set_lbl(self.vpn_badge, f"VPN: {proto}")
+            if not self.vpn_badge.has_css_class("badge-vpn-active"):
+                self.vpn_badge.remove_css_class("badge-vpn-inactive")
+                self.vpn_badge.add_css_class("badge-vpn-active")
+            _set_lbl(self.card_vpn_title, f"VPN / Proxy ({proto})")
         else:
-            self.vpn_badge.set_label("DIRECT ONLY")
-            self.vpn_badge.remove_css_class("badge-vpn-active")
-            self.vpn_badge.add_css_class("badge-vpn-inactive")
-            self.card_vpn_title.set_label("VPN / Proxy")
+            _set_lbl(self.vpn_badge, "DIRECT ONLY")
+            if not self.vpn_badge.has_css_class("badge-vpn-inactive"):
+                self.vpn_badge.remove_css_class("badge-vpn-active")
+                self.vpn_badge.add_css_class("badge-vpn-inactive")
+            _set_lbl(self.card_vpn_title, "VPN / Proxy")
 
         # 2. Update Quick Status Strip
         wifi_ssid = wifi.get("ssid", "Disconnected")
         wifi_sig = wifi.get("signal", 0)
-        self.pill_wifi_lbl.set_label(f"Wi-Fi: {wifi_ssid} ({wifi_sig}%)")
+        _set_lbl(self.pill_wifi_lbl, f"Wi-Fi: {wifi_ssid} ({wifi_sig}%)")
 
         inet_p = f"{ping['internet_ping_ms']:.1f}ms" if ping.get('internet_ping_ms') is not None else "--"
-        self.pill_ping_lbl.set_label(f"Ping: {inet_p}")
+        _set_lbl(self.pill_ping_lbl, f"Ping: {inet_p}")
 
         raw_pub_ip = ping.get("public_ip") or "Checking..."
         mask_setting = self.collector.db.get_mask_ips()
         header_pub_ip = raw_pub_ip if (not mask_setting or self.reveal_header_ip) else mask_ip(raw_pub_ip)
-        self.pill_ip_lbl.set_label(f"IP: {header_pub_ip}")
+        _set_lbl(self.pill_ip_lbl, f"IP: {header_pub_ip}")
 
         # 3. Update Live Cards
-        self.norm_down_lbl.set_label(speeds["normal_down_str"])
-        self.norm_sub_lbl.set_label(f"↓ {speeds['normal_down_str']}   ↑ {speeds['normal_up_str']}")
-        self.norm_today_lbl.set_label(f"Today: {today['normal_total_str']}")
+        _set_lbl(self.norm_down_lbl, speeds["normal_down_str"])
+        _set_lbl(self.norm_sub_lbl, f"↓ {speeds['normal_down_str']}   ↑ {speeds['normal_up_str']}")
+        _set_lbl(self.norm_today_lbl, f"Today: {today['normal_total_str']}")
 
-        self.vpn_down_lbl.set_label(speeds["vpn_down_str"])
-        self.vpn_sub_lbl.set_label(f"↓ {speeds['vpn_down_str']}   ↑ {speeds['vpn_up_str']}")
-        self.vpn_today_lbl.set_label(f"Today: {today['vpn_total_str']}")
+        _set_lbl(self.vpn_down_lbl, speeds["vpn_down_str"])
+        _set_lbl(self.vpn_sub_lbl, f"↓ {speeds['vpn_down_str']}   ↑ {speeds['vpn_up_str']}")
+        _set_lbl(self.vpn_today_lbl, f"Today: {today['vpn_total_str']}")
 
-        self.tot_down_lbl.set_label(speeds["total_down_str"])
-        self.tot_sub_lbl.set_label(f"↓ {speeds['total_down_str']}   ↑ {speeds['total_up_str']}")
-        self.tot_today_lbl.set_label(f"Today: {today['grand_total_str']}")
+        _set_lbl(self.tot_down_lbl, speeds["total_down_str"])
+        _set_lbl(self.tot_sub_lbl, f"↓ {speeds['total_down_str']}   ↑ {speeds['total_up_str']}")
+        _set_lbl(self.tot_today_lbl, f"Today: {today['grand_total_str']}")
 
-        # Redraw Live Graph
-        self.graph_area.queue_draw()
+        # Redraw Live Graph only if overview page is visible
+        if getattr(self, "view_stack", None) and self.view_stack.get_visible_child_name() == "overview":
+            self.graph_area.queue_draw()
 
         # Progress bar
         tot_bps = speeds["total_down_bps"] + speeds["total_up_bps"]
@@ -980,7 +986,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.vpn_prog_bar.set_fraction(min(1.0, max(0.0, ratio)))
         vpn_pct = int(ratio * 100)
         direct_pct = 100 - vpn_pct
-        self.split_pct_lbl.set_label(f"{direct_pct}% Direct   |   {vpn_pct}% VPN")
+        _set_lbl(self.split_pct_lbl, f"{direct_pct}% Direct   |   {vpn_pct}% VPN")
 
         # Update system tray tooltip & stats
         if hasattr(self.app, "update_tray"):
@@ -991,38 +997,39 @@ class MainWindow(Adw.ApplicationWindow):
             )
 
         # Usage Breakdown
-        self.val_today_normal.set_label(today["normal_total_str"])
-        self.val_today_vpn.set_label(today["vpn_total_str"])
-        self.val_today_tot.set_label(today["grand_total_str"])
-        self.val_sess_tot.set_label(
+        _set_lbl(self.val_today_normal, today["normal_total_str"])
+        _set_lbl(self.val_today_vpn, today["vpn_total_str"])
+        _set_lbl(self.val_today_tot, today["grand_total_str"])
+        _set_lbl(self.val_sess_tot,
             f"{session['grand_total_str']}  (Direct: {session['normal_total_str']}  |  VPN: {session['vpn_total_str']})"
         )
 
         # 4. Wi-Fi & Diagnostics
-        self.val_ssid.set_label(wifi.get("ssid", "Disconnected"))
-        self.val_signal.set_label(f"{wifi.get('signal', 0)}%  ({wifi.get('bars', '____')})")
-        self.val_bitrate.set_label(wifi.get("bitrate", "N/A"))
-        self.val_band.set_label(f"{wifi.get('band', 'N/A')} (Ch {wifi.get('channel', 'N/A')})")
-        self.val_security.set_label(wifi.get("security", "N/A"))
+        _set_lbl(self.val_ssid, wifi.get("ssid", "Disconnected"))
+        _set_lbl(self.val_signal, f"{wifi.get('signal', 0)}%  ({wifi.get('bars', '____')})")
+        _set_lbl(self.val_bitrate, wifi.get("bitrate", "N/A"))
+        _set_lbl(self.val_band, f"{wifi.get('band', 'N/A')} (Ch {wifi.get('channel', 'N/A')})")
+        _set_lbl(self.val_security, wifi.get("security", "N/A"))
 
         gw_lat = f"{ping.get('gateway_ping_ms'):.2f} ms" if ping.get("gateway_ping_ms") is not None else "--"
         inet_lat = f"{ping.get('internet_ping_ms'):.2f} ms" if ping.get("internet_ping_ms") is not None else "--"
-        self.val_ping_gw.set_label(gw_lat)
-        self.val_ping_inet.set_label(inet_lat)
+        _set_lbl(self.val_ping_gw, gw_lat)
+        _set_lbl(self.val_ping_inet, inet_lat)
         raw_local_ip = wifi.get("local_ip") or "N/A"
         diag_local_ip = raw_local_ip if (not mask_setting or self.reveal_local_ip) else mask_ip(raw_local_ip)
         diag_pub_ip = raw_pub_ip if (not mask_setting or self.reveal_public_ip) else mask_ip(raw_pub_ip)
-        self.val_local_ip.set_label(diag_local_ip)
-        self.val_public_ip.set_label(diag_pub_ip)
+        _set_lbl(self.val_local_ip, diag_local_ip)
+        _set_lbl(self.val_public_ip, diag_pub_ip)
 
         # 5. VPN Status & Apps
-        self.val_vpn_state.set_label(vpn.get("status_text", "N/A"))
-        self.val_vpn_client.set_label(vpn.get("client_name", "None"))
-        self.val_vpn_prof.set_label(f"{vpn.get('active_profile', 'None')} ({vpn.get('profile_type', '')})")
-        self.val_vpn_tun.set_label(vpn.get("tun_interface") or "Inactive")
+        _set_lbl(self.val_vpn_state, vpn.get("status_text", "N/A"))
+        _set_lbl(self.val_vpn_client, vpn.get("client_name", "None"))
+        _set_lbl(self.val_vpn_prof, f"{vpn.get('active_profile', 'None')} ({vpn.get('profile_type', '')})")
+        _set_lbl(self.val_vpn_tun, vpn.get("tun_interface") or "Inactive")
 
         running_procs = [t["name"] for t in vpn.get("running_tools", [])]
-        self.val_vpn_procs.set_label(", ".join(running_procs) if running_procs else "None detected")
+        _set_lbl(self.val_vpn_procs, ", ".join(running_procs) if running_procs else "None detected")
+
 
         # Populate top apps
         top_apps = vpn.get("top_apps", [])

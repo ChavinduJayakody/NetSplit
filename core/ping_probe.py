@@ -26,9 +26,11 @@ class PingProbe:
 
         self.is_windows = platform.system() == "Windows"
         self._running = True
+        self._stop_event = threading.Event()
         self._lock = threading.Lock()
         self._thread = threading.Thread(target=self._worker, daemon=True)
         self._thread.start()
+
 
     def update_gateway(self, gw_ip: Optional[str]):
         with self._lock:
@@ -104,7 +106,8 @@ class PingProbe:
                 self.internet_ping_ms = inet_ping
                 self.public_ip = pub_ip
 
-            time.sleep(3)
+            if self._stop_event.wait(5.0):
+                break
 
     def get_stats(self) -> Dict[str, Any]:
         with self._lock:
@@ -116,3 +119,5 @@ class PingProbe:
 
     def stop(self):
         self._running = False
+        self._stop_event.set()
+

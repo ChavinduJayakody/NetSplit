@@ -4,6 +4,11 @@ Supports detecting and monitoring all major proxy & VPN tools and protocols:
 - Clients: Throne, NetMod (Syna), Netch, NekoRay, NekoBox, v2rayA, v2rayN, Clash / Mihomo, Hiddify, WireGuard, OpenVPN.
 - Protocols: VLESS, VMess, Trojan, Shadowsocks, WireGuard, Hysteria, TUIC, SOCKS5.
 - Universal TUN / Wintun / TAP adapter detection on Linux and Windows.
+
+Optimized with:
+- Intelligent TTL caching on process scans to prevent burning CPU in psutil.process_iter()
+- Adapter name passing to avoid duplicate net_io_counters() calls
+- Conditional REST API probing for Clash/Mihomo (only probed when tool is running)
 """
 
 import os
@@ -12,6 +17,7 @@ import platform
 import sqlite3
 import urllib.request
 import json
+import time
 from typing import Dict, List, Any, Optional
 import psutil
 
@@ -75,11 +81,29 @@ class VpnDetector:
         self.throne_db = os.path.join(self.throne_dir, "throne.db")
         self.throne_stats_db = os.path.join(self.throne_dir, "throne_stats.db")
 
+        # Caching mechanisms to reduce CPU usage
+        self._cached_clients: List[Dict[str, str]] = []
+        self._last_clients_check: float = 0.0
+        self._clients_cache_ttl: float = 3.0  # seconds
+
+        self._cached_tun: Optional[str] = None
+        self._last_tun_check: float = 0.0
+        self._tun_cache_ttl: float = 2.0  # seconds
+
+        self._cached_summary: Optional[Dict[str, Any]] = None
+        self._last_summary_check: float = 0.0
+        self._summary_cache_ttl: float = 1.0  # seconds
+
     def set_custom_interface(self, iface_name: Optional[str]):
         self.custom_iface = iface_name if iface_name and iface_name.strip() else None
+        self._cached_tun = None
 
-    def get_running_clients(self) -> List[Dict[str, str]]:
-        """Scan running processes for known VPN and Proxy clients/cores."""
+    def get_running_clients(self, force: bool = False) -> List[Dict[str, str]]:
+        """Scan running processes for known VPN and Proxy clients/cores (cached)."""
+        now = time.monotonic()
+        if not force and (now - self._last_clients_check < self._clients_cache_ttl):
+            return list(self._cached_clients)
+
         detected = []
         seen = set()
         try:
@@ -96,47 +120,65 @@ class VpnDetector:
                         })
         except Exception:
             pass
+
+        self._cached_clients = detected
+        self._last_clients_check = now
         return detected
 
     def is_vpn_running(self) -> bool:
         """Check if any VPN/proxy client or core is running."""
         return len(self.get_running_clients()) > 0
 
-    def get_tun_interface_name(self) -> Optional[str]:
+    def get_tun_interface_name(self, active_adapters: Optional[List[str]] = None) -> Optional[str]:
         """
         Universal detection of active TUN, Wintun, or virtual TAP adapter.
         Works across Throne, NetMod, Netch, NekoRay, v2rayA, Clash, Sing-Box, WireGuard, etc.
         """
-        active_adapters = list(psutil.net_io_counters(pernic=True).keys())
+        now = time.monotonic()
+
+        if active_adapters is None:
+            active_adapters = list(psutil.net_io_counters(pernic=True).keys())
+
+        # If previously detected TUN is still active in adapters, reuse it
+        if self._cached_tun and self._cached_tun in active_adapters and (now - self._last_tun_check < self._tun_cache_ttl):
+            return self._cached_tun
+
+        self._last_tun_check = now
 
         # 1. Check custom interface override if configured
         if self.custom_iface and self.custom_iface in active_adapters:
+            self._cached_tun = self.custom_iface
             return self.custom_iface
 
         # 2. Check Linux kernel /sys/class/net/ for tun_flags or point-to-point virtual devices
         if platform.system() != "Windows":
             net_dir = "/sys/class/net"
             if os.path.exists(net_dir):
-                # Prioritize interfaces with tun_flags (true TUN/TAP device)
-                for iface in os.listdir(net_dir):
-                    if iface in active_adapters:
-                        tun_flags_file = os.path.join(net_dir, iface, "tun_flags")
-                        if os.path.exists(tun_flags_file):
-                            return iface
-
-                # Check virtual link + point-to-point / non-physical
-                for iface in os.listdir(net_dir):
-                    if iface in ["lo", "eno1", "wlan0", "eth0"]:
-                        continue
-                    if iface in active_adapters:
-                        link = os.path.join(net_dir, iface)
-                        if os.path.islink(link) and "virtual" in os.readlink(link):
-                            low = iface.lower()
-                            if any(k in low for k in ["tun", "tap", "throne", "sing", "nek", "clash", "wg", "meta", "netch", "netmod"]):
+                try:
+                    all_sys_ifaces = os.listdir(net_dir)
+                    # Prioritize interfaces with tun_flags (true TUN/TAP device)
+                    for iface in all_sys_ifaces:
+                        if iface in active_adapters:
+                            tun_flags_file = os.path.join(net_dir, iface, "tun_flags")
+                            if os.path.exists(tun_flags_file):
+                                self._cached_tun = iface
                                 return iface
 
+                    # Check virtual link + point-to-point / non-physical
+                    for iface in all_sys_ifaces:
+                        if iface in ["lo", "eno1", "wlan0", "eth0"]:
+                            continue
+                        if iface in active_adapters:
+                            link = os.path.join(net_dir, iface)
+                            if os.path.islink(link) and "virtual" in os.readlink(link):
+                                low = iface.lower()
+                                if any(k in low for k in ["tun", "tap", "throne", "sing", "nek", "clash", "wg", "meta", "netch", "netmod"]):
+                                    self._cached_tun = iface
+                                    return iface
+                except Exception:
+                    pass
+
         # 3. Windows & Cross-Platform Adapter Name Matcher
-        # Known TUN adapter names from Netch, NetMod, Throne, Clash, WireGuard, OpenVPN
         priority_prefixes = [
             "throne", "wintun", "sing-box", "clash", "nekoray", "nekobox",
             "netch", "netmod", "wireguard", "wg", "tun", "tap"
@@ -146,15 +188,17 @@ class VpnDetector:
             for adapter in active_adapters:
                 low = adapter.lower()
                 if low.startswith(p) or (p in low and "tunnel" not in low):
+                    self._cached_tun = adapter
                     return adapter
 
+        self._cached_tun = None
         return None
 
     def is_tun_active(self) -> bool:
         """Check if any TUN/VPN adapter is currently active."""
         return self.get_tun_interface_name() is not None
 
-    def get_active_profile_and_protocol(self) -> tuple[Optional[str], Optional[str]]:
+    def get_active_profile_and_protocol(self, running_clients: Optional[List[Dict[str, str]]] = None) -> tuple[Optional[str], Optional[str]]:
         """
         Detect active profile name and protocol (VLESS, VMess, Trojan, etc.).
         """
@@ -175,22 +219,26 @@ class VpnDetector:
             except Exception:
                 pass
 
-        # 2. Check Clash / Mihomo REST API if active
-        for port in [9090, 9097, 2080]:
-            try:
-                url = f"http://127.0.0.1:{port}/proxies"
-                req = urllib.request.Request(url, headers={'User-Agent': 'NetSplit'})
-                with urllib.request.urlopen(req, timeout=0.3) as resp:
-                    data = json.loads(resp.read().decode('utf-8'))
-                    if "proxies" in data:
-                        return "Clash / Mihomo", "Rule-Based"
-            except Exception:
-                pass
+        if running_clients is None:
+            running_clients = self.get_running_clients()
+
+        # 2. Check Clash / Mihomo REST API if running
+        is_clash_running = any('clash' in c['key'] or 'mihomo' in c['key'] for c in running_clients)
+        if is_clash_running:
+            for port in [9090, 9097, 2080]:
+                try:
+                    url = f"http://127.0.0.1:{port}/proxies"
+                    req = urllib.request.Request(url, headers={'User-Agent': 'NetSplit'})
+                    with urllib.request.urlopen(req, timeout=0.2) as resp:
+                        data = json.loads(resp.read().decode('utf-8'))
+                        if "proxies" in data:
+                            return "Clash / Mihomo", "Rule-Based"
+                except Exception:
+                    pass
 
         # 3. Detect from running client names
-        running = self.get_running_clients()
-        if running:
-            primary = running[0]
+        if running_clients:
+            primary = running_clients[0]
             name = primary["name"]
             if "netmod" in primary["key"]:
                 return "NetMod Active", "SSH/V2Ray"
@@ -244,13 +292,17 @@ class VpnDetector:
             pass
         return apps
 
-    def get_status_summary(self) -> Dict[str, Any]:
-        """Comprehensive summary of active VPN / Proxy status."""
+    def get_status_summary(self, active_adapters: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Comprehensive summary of active VPN / Proxy status (with 1.0s caching)."""
+        now = time.monotonic()
+        if self._cached_summary and (now - self._last_summary_check < self._summary_cache_ttl):
+            return dict(self._cached_summary)
+
         running_tools = self.get_running_clients()
         is_running = len(running_tools) > 0
-        tun_active = self.is_tun_active()
-        tun_name = self.get_tun_interface_name()
-        profile_name, protocol = self.get_active_profile_and_protocol()
+        tun_name = self.get_tun_interface_name(active_adapters=active_adapters)
+        tun_active = tun_name is not None
+        profile_name, protocol = self.get_active_profile_and_protocol(running_clients=running_tools)
 
         primary_client = running_tools[0]["name"] if running_tools else "VPN / Proxy"
 
@@ -265,7 +317,7 @@ class VpnDetector:
         elif is_running:
             status_text = f"Running ({primary_client} Standby)"
 
-        return {
+        summary = {
             "is_running": is_running,
             "tun_active": tun_active,
             "tun_interface": tun_name,
@@ -277,3 +329,7 @@ class VpnDetector:
             # Only report per-app stats when a TUN is actually up
             "top_apps": self.get_top_apps(limit=8) if tun_active else [],
         }
+
+        self._cached_summary = summary
+        self._last_summary_check = now
+        return summary

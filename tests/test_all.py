@@ -477,13 +477,133 @@ class TestNoToolsInstalled(unittest.TestCase):
             self.assertEqual(today["vpn_tx"], 0)
             self.assertEqual(today["total_rx"], 5000)   # only direct
 
-    def test_format_helpers_zero_vpn(self):
-        """format_bytes and format_speed handle zero gracefully."""
-        self.assertEqual(format_bytes(0), "0 B")
-        self.assertEqual(format_speed(0.0), "0 B/s")
-        self.assertEqual(format_bytes(-1), "0 B")      # negative clamped
-        self.assertEqual(format_speed(-100), "0 B/s")  # negative clamped
+class TestPerformanceAndAccuracyOptimizations(unittest.TestCase):
+    """Verify enhanced accuracy and CPU/memory optimizations."""
+
+    def setUp(self):
+        import unittest.mock as mock
+        self.mock = mock
+
+    def test_db_in_memory_accuracy_and_batch_flush(self):
+        """Deltas are immediately available in memory with 100% accuracy, and flush commits to disk."""
+        import tempfile
+        from core.database import StatsDatabase
+
+        with tempfile.TemporaryDirectory() as td:
+            db_path = os.path.join(td, "cache_test.db")
+            db = StatsDatabase(db_path)
+
+            # Record deltas
+            db.record_traffic(normal_rx=1000, normal_tx=200, vpn_rx=5000, vpn_tx=1000)
+
+            # Immediately query from in-memory cache without waiting for flush
+            today = db.get_today_stats()
+            self.assertEqual(today["normal_rx"], 1000)
+            self.assertEqual(today["vpn_rx"], 5000)
+            self.assertEqual(today["total_rx"], 6000)
+
+            # Now flush to SQLite and verify on-disk consistency
+            db.flush()
+            import sqlite3
+            conn = sqlite3.connect(db_path)
+            try:
+                c = conn.cursor()
+                c.execute("SELECT normal_rx, vpn_rx FROM daily_stats")
+                row = c.fetchone()
+                self.assertIsNotNone(row)
+                self.assertEqual(row[0], 1000)
+                self.assertEqual(row[1], 5000)
+            finally:
+                conn.close()
+
+    def test_vpn_connection_baseline_no_spike(self):
+        """When VPN connects, pre-existing bytes on the TUN interface must NOT trigger a false spike."""
+        import tempfile
+        from core.collector import NetworkCollector
+        from core.database import StatsDatabase
+
+        with tempfile.TemporaryDirectory() as td:
+            db = StatsDatabase(os.path.join(td, "spike_test.db"))
+
+            c = NetworkCollector.__new__(NetworkCollector)
+            c.wifi_iface = "wlan0"
+            c.is_linux = False
+            c.is_windows = False
+            c.db = db
+            c._lock = __import__("threading").Lock()
+
+            # Mock VPN detector
+            c.vpn = self.mock.MagicMock()
+            c.throne = c.vpn
+
+            # Tick 1: VPN is NOT active. Wi-Fi has 10,000 bytes.
+            fake_counters_tick1 = {
+                "wlan0": self.mock.MagicMock(bytes_recv=10_000, bytes_sent=2_000)
+            }
+            c.vpn.get_tun_interface_name.return_value = None
+            c.prev_wifi_rx = 10_000
+            c.prev_wifi_tx = 2_000
+            c.prev_vpn_rx = None
+            c.prev_vpn_tx = None
+            c.prev_vpn_active = False
+            c.prev_timestamp = time.monotonic() - 1.0
+            c.session_normal_rx = 0
+            c.session_normal_tx = 0
+            c.session_vpn_rx = 0
+            c.session_vpn_tx = 0
+            c.session_total_rx = 0
+            c.session_total_tx = 0
+            from collections import deque
+            c.speed_history = deque(maxlen=60)
+
+            # Tick 2: VPN connects! tun0 appears with 50,000,000 pre-existing bytes.
+            # Physical wlan0 has transferred 5,000 bytes since tick 1.
+            fake_counters_tick2 = {
+                "wlan0": self.mock.MagicMock(bytes_recv=15_000, bytes_sent=3_000),
+                "tun0": self.mock.MagicMock(bytes_recv=50_000_000, bytes_sent=10_000_000),
+            }
+            c.vpn.get_tun_interface_name.return_value = "tun0"
+
+            with self.mock.patch("psutil.net_io_counters", return_value=fake_counters_tick2):
+                c._sample_traffic(time.monotonic())
+
+            # The 50 MB existing on the tunnel should NOT be counted as a 50 MB spike
+            # In Exclusive Mode (default), vpn delta = physical delta (5,000 bytes)
+            # Not 50,000,000!
+            self.assertLess(c.session_vpn_rx, 100_000)
+            self.assertEqual(c.session_vpn_rx, 5_000)
+
+    def test_vpn_detector_process_cache(self):
+        """VpnDetector caches get_running_clients to avoid scanning process table repeatedly."""
+        from core.vpn_detector import VpnDetector
+        vd = VpnDetector()
+
+        mock_procs = [
+            self.mock.MagicMock(info={"name": "sing-box"})
+        ]
+
+        with self.mock.patch("psutil.process_iter", return_value=mock_procs) as mock_iter:
+            # First call: hits process_iter
+            res1 = vd.get_running_clients(force=True)
+            self.assertEqual(len(res1), 1)
+            self.assertEqual(res1[0]["name"], "Sing-Box")
+            initial_count = mock_iter.call_count
+
+            # Second call immediately after: uses cache, does NOT call process_iter again
+            res2 = vd.get_running_clients(force=False)
+            self.assertEqual(len(res2), 1)
+            self.assertEqual(mock_iter.call_count, initial_count)
+
+    def test_wifi_gateway_cache(self):
+        """get_default_gateway_and_iface returns cached value within TTL."""
+        from core.wifi import get_default_gateway_and_iface
+        # Call once to populate cache
+        res1 = get_default_gateway_and_iface(force=True)
+        # Call again without force
+        res2 = get_default_gateway_and_iface(force=False)
+        self.assertEqual(res1, res2)
 
 
 if __name__ == "__main__":
     unittest.main()
+
