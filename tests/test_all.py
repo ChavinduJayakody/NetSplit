@@ -1074,7 +1074,8 @@ class TestGnomeExtensionManager(unittest.TestCase):
         import json
         with open(meta_file, "r", encoding="utf-8") as f:
             meta = json.load(f)
-        self.assertEqual(meta["uuid"], "netsplit-hud@netsplit.app")
+        self.assertEqual(meta["uuid"], "netsplit-hud@chavindujayakody.github.io")
+        self.assertEqual(meta["url"], "https://github.com/ChavinduJayakody/NetSplit")
         self.assertIn("50", meta["shell-version"])
 
     def test_detection_functions(self):

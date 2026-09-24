@@ -1,4 +1,6 @@
-/* NetSplit GNOME Shell Top Bar Telemetry Extension (GNOME 45-50+) */
+/* NetSplit GNOME Shell Top Bar Telemetry Extension (GNOME 45-51+)
+ * https://github.com/ChavinduJayakody/NetSplit
+ */
 import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
@@ -30,12 +32,14 @@ class NetSplitIndicator extends PanelMenu.Button {
     _init(extension) {
         super._init(0.0, 'NetSplit Indicator', false);
         this._extension = extension;
-        this._displayMode = 'sigma_today';
+        this._displayMode = this._loadSavedMode();
         this._proxy = null;
         this._timeoutId = null;
         this._prevRx = 0;
         this._prevTx = 0;
         this._prevTime = 0;
+        this._latestDbusData = null;
+        this._modeMenuItems = new Map();
 
         // Container & Top Bar Label
         const box = new St.BoxLayout({
@@ -54,6 +58,31 @@ class NetSplitIndicator extends PanelMenu.Button {
         this._buildMenu();
         this._initDBus();
         this._startPolling();
+    }
+
+    _loadSavedMode() {
+        try {
+            const path = GLib.build_filenamev([GLib.get_user_config_dir(), 'network-monitor', 'gnome_hud_mode.txt']);
+            if (GLib.file_test(path, GLib.FileTest.EXISTS)) {
+                const [ok, bytes] = GLib.file_get_contents(path);
+                if (ok) {
+                    const mode = new TextDecoder().decode(bytes).trim();
+                    if (mode && DISPLAY_MODES.some(m => m.key === mode)) {
+                        return mode;
+                    }
+                }
+            }
+        } catch (e) {}
+        return 'sigma_today';
+    }
+
+    _saveMode(mode) {
+        try {
+            const dir = GLib.build_filenamev([GLib.get_user_config_dir(), 'network-monitor']);
+            GLib.mkdir_with_parents(dir, 0o755);
+            const path = GLib.build_filenamev([dir, 'gnome_hud_mode.txt']);
+            GLib.file_set_contents(path, mode);
+        } catch (e) {}
     }
 
     _buildMenu() {
@@ -90,20 +119,23 @@ class NetSplitIndicator extends PanelMenu.Button {
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         // 4. Latency / Ping
-        this._pingItem = new PopupMenu.PopupMenuItem('Ping: --', { reactive: false });
+        this._pingItem = new PopupMenu.PopupMenuItem('Network: Direct  •  Ping: --', { reactive: false });
         this.menu.addMenuItem(this._pingItem);
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        // 5. Display Metric Submenu
+        // 5. Display Metric Submenu with Radio Ornaments
         this._modesSubMenu = new PopupMenu.PopupSubMenuMenuItem('Display Metric');
+        this._modeMenuItems = new Map();
         DISPLAY_MODES.forEach(mode => {
             const mItem = new PopupMenu.PopupMenuItem(mode.label);
             mItem.connect('activate', () => {
                 this._setMode(mode.key);
             });
             this._modesSubMenu.menu.addMenuItem(mItem);
+            this._modeMenuItems.set(mode.key, mItem);
         });
+        this._updateModeOrnaments();
         this.menu.addMenuItem(this._modesSubMenu);
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
@@ -114,6 +146,17 @@ class NetSplitIndicator extends PanelMenu.Button {
             this._openDashboard();
         });
         this.menu.addMenuItem(openAppItem);
+    }
+
+    _updateModeOrnaments() {
+        if (!this._modeMenuItems) return;
+        this._modeMenuItems.forEach((item, key) => {
+            if (key === this._displayMode) {
+                item.setOrnament(PopupMenu.Ornament.DOT);
+            } else {
+                item.setOrnament(PopupMenu.Ornament.NONE);
+            }
+        });
     }
 
     _initDBus() {
@@ -143,8 +186,52 @@ class NetSplitIndicator extends PanelMenu.Button {
         }
     }
 
+    _formatLabel(mode, data) {
+        if (!data) return 'Σ --';
+        const vpnIcon = data.isVpn ? '🔒 ' : '';
+        const todayTot = data.todayTot || '0 B';
+        const totDown = data.totDown || '0 B/s';
+        const totUp = data.totUp || '0 B/s';
+        const normDown = data.normDown || '0 B/s';
+        const vpnDown = data.vpnDown || '0 B/s';
+        const todayNorm = data.todayNorm || '0 B';
+        const todayVpn = data.todayVpn || '0 B';
+
+        switch (mode) {
+            case 'sigma_today':
+                return `${vpnIcon}Σ ${todayTot}`;
+            case 'speeds_total':
+                return `${vpnIcon}↓ ${totDown}  ↑ ${totUp}`;
+            case 'speeds_split':
+                return `DIR: ${normDown} | VPN: ${vpnDown}`;
+            case 'today_total':
+                return data.isVpn ? `Today: ${todayTot} (VPN: ${todayVpn})` : `Today: ${todayTot}`;
+            case 'today_split':
+                return `Dir: ${todayNorm} | VPN: ${todayVpn}`;
+            case 'down_only':
+                return `${vpnIcon}↓ ${totDown}`;
+            case 'up_only':
+                return `↑ ${totUp}`;
+            case 'full_compact':
+                return `${vpnIcon}↓${totDown} ↑${totUp} | Σ ${todayTot}`;
+            default:
+                return `${vpnIcon}Σ ${todayTot}`;
+        }
+    }
+
     _setMode(modeKey) {
         this._displayMode = modeKey;
+        this._saveMode(modeKey);
+        this._updateModeOrnaments();
+
+        // 1. Immediately update top bar label
+        if (this._latestDbusData) {
+            this._label.set_text(this._formatLabel(this._displayMode, this._latestDbusData));
+        } else {
+            this._readProcNetFallback();
+        }
+
+        // 2. Notify NetSplit daemon via D-Bus
         if (this._proxy) {
             try {
                 this._proxy.call(
@@ -157,7 +244,6 @@ class NetSplitIndicator extends PanelMenu.Button {
                 );
             } catch (e) {}
         }
-        this._updateFromDBus();
     }
 
     _openDashboard() {
@@ -216,45 +302,25 @@ class NetSplitIndicator extends PanelMenu.Button {
             const todayNorm = getProp('TodayNormalStr', '0 B');
             const todayVpn = getProp('TodayVpnStr', '0 B');
             const pingStr = getProp('PingStr', '--');
-            const serverMode = getProp('DisplayMode', this._displayMode);
 
-            if (serverMode) this._displayMode = serverMode;
+            this._latestDbusData = {
+                isVpn,
+                vpnName,
+                netName,
+                normDown,
+                normUp,
+                vpnDown,
+                vpnUp,
+                totDown,
+                totUp,
+                todayTot,
+                todayNorm,
+                todayVpn,
+                pingStr
+            };
 
             // Format top panel label
-            let labelText = '';
-            const vpnIcon = isVpn ? '🔒 ' : '';
-
-            switch (this._displayMode) {
-                case 'sigma_today':
-                    labelText = `${vpnIcon}Σ ${todayTot}`;
-                    break;
-                case 'speeds_total':
-                    labelText = `${vpnIcon}↓ ${totDown}  ↑ ${totUp}`;
-                    break;
-                case 'speeds_split':
-                    labelText = `DIR: ${normDown} | VPN: ${vpnDown}`;
-                    break;
-                case 'today_total':
-                    labelText = isVpn ? `Today: ${todayTot} (VPN: ${todayVpn})` : `Today: ${todayTot}`;
-                    break;
-                case 'today_split':
-                    labelText = `Dir: ${todayNorm} | VPN: ${todayVpn}`;
-                    break;
-                case 'down_only':
-                    labelText = `${vpnIcon}↓ ${totDown}`;
-                    break;
-                case 'up_only':
-                    labelText = `↑ ${totUp}`;
-                    break;
-                case 'full_compact':
-                    labelText = `${vpnIcon}↓${totDown} ↑${totUp} | Σ ${todayTot}`;
-                    break;
-                default:
-                    labelText = `${vpnIcon}Σ ${todayTot}`;
-                    break;
-            }
-
-            this._label.set_text(labelText);
+            this._label.set_text(this._formatLabel(this._displayMode, this._latestDbusData));
 
             // Update dropdown menu items
             const statusTxt = isVpn ? `NetSplit • 🔒 ${vpnName}` : `NetSplit • ${netName}`;
@@ -270,6 +336,7 @@ class NetSplitIndicator extends PanelMenu.Button {
 
             this._pingItem.label.set_text(`Network: ${netName}  •  Ping: ${pingStr}`);
 
+            this._updateModeOrnaments();
             return true;
         } catch (e) {
             return false;
@@ -314,21 +381,37 @@ class NetSplitIndicator extends PanelMenu.Button {
             };
 
             const totUsageStr = formatBytes(totalRx + totalTx);
-            if (this._displayMode === 'sigma_today') {
-                this._label.set_text(`Σ ${totUsageStr}`);
-            } else {
-                let downRate = 0, upRate = 0;
-                if (this._prevTime > 0) {
-                    const dt = Math.max(0.1, now - this._prevTime);
-                    downRate = Math.max(0, (totalRx - this._prevRx) / dt);
-                    upRate = Math.max(0, (totalTx - this._prevTx) / dt);
-                }
-                this._prevRx = totalRx;
-                this._prevTx = totalTx;
-                this._prevTime = now;
-                this._label.set_text(`↓ ${formatBytes(downRate)}/s  ↑ ${formatBytes(upRate)}/s`);
+            let downRate = 0, upRate = 0;
+            if (this._prevTime > 0) {
+                const dt = Math.max(0.1, now - this._prevTime);
+                downRate = Math.max(0, (totalRx - this._prevRx) / dt);
+                upRate = Math.max(0, (totalTx - this._prevTx) / dt);
             }
+            this._prevRx = totalRx;
+            this._prevTx = totalTx;
+            this._prevTime = now;
+
+            const downStr = formatBytes(downRate) + '/s';
+            const upStr = formatBytes(upRate) + '/s';
+
+            const fallbackData = {
+                isVpn: false,
+                totDown: downStr,
+                totUp: upStr,
+                normDown: downStr,
+                vpnDown: '0 B/s',
+                todayTot: totUsageStr,
+                todayNorm: totUsageStr,
+                todayVpn: '0 B'
+            };
+
+            this._label.set_text(this._formatLabel(this._displayMode, fallbackData));
             this._headerItem.label.set_text('NetSplit: Background Fallback (Click to Open)');
+            this._speedTotalItem.label.set_text(`Total:   ↓ ${downStr}   ↑ ${upStr}`);
+            this._speedDirectItem.label.set_text(`Direct:  ↓ ${downStr}   ↑ ${upStr}`);
+            this._usageTotalItem.label.set_text(`Total Traffic:  Σ ${totUsageStr}`);
+
+            this._updateModeOrnaments();
         } catch (e) {}
     }
 

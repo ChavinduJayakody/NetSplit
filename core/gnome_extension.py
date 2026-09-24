@@ -13,7 +13,8 @@ import subprocess
 from typing import Optional, Tuple, List
 
 
-EXTENSION_UUID = "netsplit-hud@netsplit.app"
+EXTENSION_UUID = "netsplit-hud@chavindujayakody.github.io"
+OLD_EXTENSION_UUID = "netsplit-hud@netsplit.app"
 
 
 def is_linux() -> bool:
@@ -197,6 +198,18 @@ def install_extension() -> Tuple[bool, str]:
             )
         except Exception:
             pass
+
+        # Clean up old extension folder if it existed with placeholder domain
+        old_dir = os.path.expanduser(f"~/.local/share/gnome-shell/extensions/{OLD_EXTENSION_UUID}")
+        if os.path.exists(old_dir):
+            try:
+                shutil.rmtree(old_dir)
+            except Exception:
+                pass
+        old_list = _get_gsettings_enabled_extensions()
+        if OLD_EXTENSION_UUID in old_list:
+            old_list = [x for x in old_list if x != OLD_EXTENSION_UUID]
+            _set_gsettings_enabled_extensions(old_list)
 
         return True, "Extension installed successfully."
     except Exception as e:

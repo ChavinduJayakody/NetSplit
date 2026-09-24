@@ -456,7 +456,7 @@ class LinuxDBusTray(TrayController):
                 self.app_props["TodayVpnStr"] = today.get("vpn_total_str", "0 B")
                 lat = ping.get("latency_ms")
                 self.app_props["PingStr"] = f"{lat} ms" if lat is not None else "--"
-                self.app_props["DisplayMode"] = display_mode
+                self.app_props["DisplayMode"] = self.current_display_mode
 
                 if self.is_running and self.bus:
                     changed = {}

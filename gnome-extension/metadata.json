@@ -1,7 +1,7 @@
 {
   "name": "NetSplit Top Bar HUD",
-  "description": "Displays real-time network speeds, VPN/Proxy split accounting, and data usage on GNOME Shell top panel.",
-  "uuid": "netsplit-hud@netsplit.app",
+  "description": "Displays real-time network speeds, VPN/Proxy split accounting, and daily data usage on GNOME Shell top panel.",
+  "uuid": "netsplit-hud@chavindujayakody.github.io",
   "shell-version": [
     "45",
     "46",
