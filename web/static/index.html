@@ -1151,6 +1151,7 @@
                 <p>Telemetry metric published live to the Linux top panel.</p>
               </div>
               <select id="setting-tray-mode" class="input-select" onchange="updateSetting('tray_display_mode', this.value)">
+                <option value="sigma_today">Sigma Today Usage (Σ 0.00 GB)</option>
                 <option value="speeds_total">Total Speeds (↓ / ↑)</option>
                 <option value="speeds_split">Split Speeds (Direct vs VPN)</option>
                 <option value="today_total">Today Total Usage</option>
@@ -1179,6 +1180,7 @@
                 <p>Primary metric featured inside the floating HUD.</p>
               </div>
               <select id="setting-hud-mode" class="input-select" onchange="updateSetting('hud_display_mode', this.value); updateHudMode(this.value);">
+                <option value="sigma_today">Sigma Today Usage (Σ 0.00 GB)</option>
                 <option value="speeds_total">Total Speeds (↓ / ↑)</option>
                 <option value="speeds_split">Split Speeds (Direct vs VPN)</option>
                 <option value="today_total">Today Total Usage</option>
@@ -1199,6 +1201,34 @@
                 <option value="90">90% (Standard Glass)</option>
                 <option value="75">75% (Translucent)</option>
                 <option value="60">60% (Subtle)</option>
+              </select>
+            </div>
+
+            <div class="setting-row" id="row-gnome-ext" style="display: none;">
+              <div class="setting-info">
+                <strong>GNOME Shell Top Bar Extension (Arch Linux)</strong>
+                <p id="gnome-ext-desc">Display live telemetry (Σ usage / speeds) on GNOME top panel.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setting-gnome-ext" onchange="updateSetting('gnome_ext_enabled', this.checked);">
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="setting-row" id="row-gnome-ext-mode" style="display: none;">
+              <div class="setting-info">
+                <strong>Top Bar Extension Metric</strong>
+                <p>Choose metric featured on top panel (e.g. Σ 2.59 GB).</p>
+              </div>
+              <select id="setting-gnome-ext-mode" class="input-select" onchange="updateSetting('gnome_ext_display_mode', this.value);">
+                <option value="sigma_today">Sigma Today Usage (Σ 0.00 GB)</option>
+                <option value="speeds_total">Total Speeds (↓ / ↑)</option>
+                <option value="speeds_split">Split Speeds (Direct vs VPN)</option>
+                <option value="today_total">Today Total Usage</option>
+                <option value="today_split">Today Split Usage</option>
+                <option value="down_only">Download Speed Only</option>
+                <option value="up_only">Upload Speed Only</option>
+                <option value="full_compact">Full Compact (Speeds + Today)</option>
               </select>
             </div>
           </div>
@@ -1710,6 +1740,22 @@
             hudOpEl.value = String(data.hud_opacity);
             updateHudOpacity(data.hud_opacity);
           }
+
+          const gnomeExtRow = document.getElementById('row-gnome-ext');
+          const gnomeExtModeRow = document.getElementById('row-gnome-ext-mode');
+          const gnomeExtSwitch = document.getElementById('setting-gnome-ext');
+          const gnomeExtMode = document.getElementById('setting-gnome-ext-mode');
+          const gnomeExtDesc = document.getElementById('gnome-ext-desc');
+
+          if (gnomeExtRow && data.gnome_ext_supported) {
+            gnomeExtRow.style.display = 'flex';
+            if (gnomeExtModeRow) gnomeExtModeRow.style.display = 'flex';
+            if (gnomeExtSwitch) gnomeExtSwitch.checked = !!data.gnome_ext_enabled;
+            if (gnomeExtMode && data.gnome_ext_display_mode) gnomeExtMode.value = data.gnome_ext_display_mode;
+            if (gnomeExtDesc && data.is_arch_linux) {
+              gnomeExtDesc.textContent = 'Display live telemetry on GNOME top panel [Arch Linux Native].';
+            }
+          }
         })
         .catch(err => {
           console.warn("Failed to fetch settings:", err);
@@ -1736,6 +1782,7 @@
     let currentHudMode = 'speeds_total';
     let currentHudOpacity = 90;
     const hudModesList = [
+      'sigma_today',
       'speeds_total',
       'speeds_split',
       'today_total',
@@ -1754,6 +1801,8 @@
       const vpnIcon = isVpn ? "🔒 " : "";
 
       switch (mode) {
+        case 'sigma_today':
+          return `${vpnIcon}Σ ${today.grand_total_str || '0 B'}`;
         case 'speeds_total':
           return `${vpnIcon}↓ ${spd.total_down_str || '0 B/s'}   ↑ ${spd.total_up_str || '0 B/s'}`;
         case 'speeds_split':
@@ -1767,7 +1816,7 @@
         case 'up_only':
           return `↑ ${spd.total_up_str || '0 B/s'}`;
         case 'full_compact':
-          return `${vpnIcon}↓${spd.total_down_str || '0 B/s'} ↑${spd.total_up_str || '0 B/s'} | ${today.grand_total_str || '0 B'}`;
+          return `${vpnIcon}↓${spd.total_down_str || '0 B/s'} ↑${spd.total_up_str || '0 B/s'} | Σ ${today.grand_total_str || '0 B'}`;
         default:
           return `${vpnIcon}↓ ${spd.total_down_str || '0 B/s'}   ↑ ${spd.total_up_str || '0 B/s'}`;
       }

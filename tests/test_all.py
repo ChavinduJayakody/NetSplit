@@ -979,6 +979,10 @@ class TestDesktopHudAndTrayTelemetry(unittest.TestCase):
         lbl_icon = format_telemetry_label("icon_only", snapshot_direct)
         self.assertEqual(lbl_icon, "")
 
+        # sigma_today
+        lbl_sigma = format_telemetry_label("sigma_today", snapshot_direct)
+        self.assertEqual(lbl_sigma, "Σ 4.8 GB")
+
         # Test VPN Active snapshot has lock icon
         snapshot_vpn = {
             "speeds": {
@@ -1000,6 +1004,9 @@ class TestDesktopHudAndTrayTelemetry(unittest.TestCase):
         self.assertTrue(lbl_vpn.startswith("🔒"))
         self.assertIn("↓ 5.0 MB/s", lbl_vpn)
 
+        lbl_vpn_sigma = format_telemetry_label("sigma_today", snapshot_vpn)
+        self.assertEqual(lbl_vpn_sigma, "🔒 Σ 6.0 GB")
+
         lbl_vpn_today = format_telemetry_label("today_total", snapshot_vpn)
         self.assertEqual(lbl_vpn_today, "Today: 6.0 GB (VPN: 5.0 GB)")
 
@@ -1013,12 +1020,14 @@ class TestDesktopHudAndTrayTelemetry(unittest.TestCase):
         handler.collector = collector
         handler.headers = {"Content-Length": "0"}
 
-        # Test POST update settings for HUD
+        # Test POST update settings for HUD & GNOME extension
         payload = {
             "tray_display_mode": "speeds_split",
             "hud_enabled": True,
             "hud_display_mode": "full_compact",
-            "hud_opacity": 75
+            "hud_opacity": 75,
+            "gnome_ext_enabled": True,
+            "gnome_ext_display_mode": "sigma_today"
         }
         sent_response = []
         handler._send_json_response = lambda d, status=200: sent_response.append((d, status))
@@ -1030,6 +1039,8 @@ class TestDesktopHudAndTrayTelemetry(unittest.TestCase):
         self.assertTrue(self.db.get_hud_enabled())
         self.assertEqual(self.db.get_hud_display_mode(), "full_compact")
         self.assertEqual(self.db.get_hud_opacity(), 75)
+        self.assertTrue(self.db.get_gnome_ext_enabled())
+        self.assertEqual(self.db.get_gnome_ext_display_mode(), "sigma_today")
 
         # Test GET settings returns these fields
         get_response = []
@@ -1040,6 +1051,54 @@ class TestDesktopHudAndTrayTelemetry(unittest.TestCase):
         self.assertTrue(res_data["hud_enabled"])
         self.assertEqual(res_data["hud_display_mode"], "full_compact")
         self.assertEqual(res_data["hud_opacity"], 75)
+        self.assertIn("gnome_ext_supported", res_data)
+        self.assertIn("is_arch_linux", res_data)
+        self.assertIn("gnome_ext_enabled", res_data)
+        self.assertEqual(res_data["gnome_ext_display_mode"], "sigma_today")
+
+
+class TestGnomeExtensionManager(unittest.TestCase):
+    def test_extension_paths_and_metadata(self):
+        from core import gnome_extension
+        bundled = gnome_extension.get_bundled_extension_dir()
+        self.assertIsNotNone(bundled)
+        self.assertTrue(os.path.isdir(bundled))
+
+        meta_file = os.path.join(bundled, "metadata.json")
+        ext_file = os.path.join(bundled, "extension.js")
+        css_file = os.path.join(bundled, "stylesheet.css")
+        self.assertTrue(os.path.isfile(meta_file))
+        self.assertTrue(os.path.isfile(ext_file))
+        self.assertTrue(os.path.isfile(css_file))
+
+        import json
+        with open(meta_file, "r", encoding="utf-8") as f:
+            meta = json.load(f)
+        self.assertEqual(meta["uuid"], "netsplit-hud@netsplit.app")
+        self.assertIn("50", meta["shell-version"])
+
+    def test_detection_functions(self):
+        from core import gnome_extension
+        # Running on Linux Arch/CachyOS
+        self.assertTrue(gnome_extension.is_linux())
+        self.assertTrue(gnome_extension.is_arch_linux())
+        self.assertTrue(gnome_extension.is_gnome_available())
+
+    def test_install_and_lifecycle(self):
+        from core import gnome_extension
+        # Test install
+        ok, msg = gnome_extension.install_extension()
+        self.assertTrue(ok)
+        self.assertTrue(gnome_extension.is_extension_installed())
+
+        # Test enable
+        ok, msg = gnome_extension.enable_extension()
+        self.assertTrue(ok)
+        self.assertTrue(gnome_extension.is_extension_enabled())
+
+        # Test disable
+        ok = gnome_extension.disable_extension()
+        self.assertTrue(ok)
 
 
 if __name__ == "__main__":

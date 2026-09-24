@@ -14,6 +14,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 
 DISPLAY_MODES = [
+    ("sigma_today", "Sigma Today Usage (Σ 0.00 GB)"),
     ("speeds_total", "Total Speeds (↓ / ↑)"),
     ("speeds_split", "Split Speeds (Direct vs VPN)"),
     ("today_total", "Today Total Usage"),
@@ -36,9 +37,11 @@ def format_telemetry_label(
     if mode == "icon_only":
         return ""
 
+    vpn_icon = "🔒 " if is_vpn else ""
     if not snapshot:
-        vpn_icon = "🔒 " if is_vpn else ""
-        if mode == "down_only":
+        if mode == "sigma_today":
+            return f"{vpn_icon}Σ 0 B"
+        elif mode == "down_only":
             return f"{vpn_icon}↓ {normal_str}"
         elif mode == "up_only":
             return f"↑ {normal_str}"
@@ -52,7 +55,10 @@ def format_telemetry_label(
     is_vpn = bool(vpn.get("tun_active", False)) if "tun_active" in vpn else is_vpn
     vpn_icon = "🔒 " if is_vpn else ""
 
-    if mode == "speeds_total":
+    if mode == "sigma_today":
+        tot = today.get("grand_total_str", "0 B")
+        return f"{vpn_icon}Σ {tot}"
+    elif mode == "speeds_total":
         down = speeds.get("total_down_str", "0 B/s")
         up = speeds.get("total_up_str", "0 B/s")
         return f"{vpn_icon}↓ {down}  ↑ {up}"
@@ -164,13 +170,63 @@ class LinuxDBusTray(TrayController):
     </node>
     """
 
-    def __init__(self, on_activate: Optional[Callable[[], None]] = None, on_quit: Optional[Callable[[], None]] = None):
+    APP_IFACE_XML = """
+    <node>
+      <interface name='io.github.networkmonitor.App'>
+        <property name='IsVpnActive' type='b' access='read'/>
+        <property name='VpnName' type='s' access='read'/>
+        <property name='NetworkName' type='s' access='read'/>
+        <property name='NormalDownStr' type='s' access='read'/>
+        <property name='NormalUpStr' type='s' access='read'/>
+        <property name='VpnDownStr' type='s' access='read'/>
+        <property name='VpnUpStr' type='s' access='read'/>
+        <property name='TotalDownStr' type='s' access='read'/>
+        <property name='TotalUpStr' type='s' access='read'/>
+        <property name='TodayTotalStr' type='s' access='read'/>
+        <property name='TodayNormalStr' type='s' access='read'/>
+        <property name='TodayVpnStr' type='s' access='read'/>
+        <property name='PingStr' type='s' access='read'/>
+        <property name='DisplayMode' type='s' access='readwrite'/>
+        <method name='OpenMainWindow'/>
+        <method name='SetDisplayMode'>
+          <arg type='s' name='mode' direction='in'/>
+        </method>
+      </interface>
+    </node>
+    """
+
+    def __init__(
+        self,
+        on_activate: Optional[Callable[[], None]] = None,
+        on_quit: Optional[Callable[[], None]] = None,
+        on_display_mode_changed: Optional[Callable[[str], None]] = None
+    ):
         super().__init__(on_activate, on_quit)
+        self.on_display_mode_changed = on_display_mode_changed
         self.bus = None
         self.reg_id = None
         self.owner_id = None
+        self.app_reg_id = None
+        self.app_owner_id = None
         self.tooltip_text = "NetSplit - Network Monitor"
         self.current_label = ""
+        self.current_display_mode = "sigma_today"
+        self.app_props = {
+            "IsVpnActive": False,
+            "VpnName": "Direct",
+            "NetworkName": "Direct",
+            "NormalDownStr": "0 B/s",
+            "NormalUpStr": "0 B/s",
+            "VpnDownStr": "0 B/s",
+            "VpnUpStr": "0 B/s",
+            "TotalDownStr": "0 B/s",
+            "TotalUpStr": "0 B/s",
+            "TodayTotalStr": "0 B",
+            "TodayNormalStr": "0 B",
+            "TodayVpnStr": "0 B",
+            "PingStr": "--",
+            "DisplayMode": "sigma_today",
+        }
         self._init_sni()
 
     def _init_sni(self):
@@ -190,15 +246,12 @@ class LinuxDBusTray(TrayController):
             return
 
         try:
+            # 1. Register StatusNotifierItem interface
             node_info = self.Gio.DBusNodeInfo.new_for_xml(self.SNI_XML)
             interface_info = node_info.interfaces[0]
 
             def method_call_cb(conn, sender, object_path, iface_name, method_name, params, invocation):
-                if method_name in ("Activate", "SecondaryActivate"):
-                    if self.on_activate:
-                        self.GLib.idle_add(self.on_activate)
-                    invocation.return_value(None)
-                elif method_name == "ContextMenu":
+                if method_name in ("Activate", "SecondaryActivate", "ContextMenu"):
                     if self.on_activate:
                         self.GLib.idle_add(self.on_activate)
                     invocation.return_value(None)
@@ -263,6 +316,62 @@ class LinuxDBusTray(TrayController):
                 None
             )
 
+            # 2. Register io.github.networkmonitor.App interface for GNOME Shell Extension
+            try:
+                app_node = self.Gio.DBusNodeInfo.new_for_xml(self.APP_IFACE_XML)
+                app_iface = app_node.interfaces[0]
+
+                def app_method_call_cb(conn, sender, object_path, iface_name, method_name, params, invocation):
+                    if method_name == "OpenMainWindow":
+                        if self.on_activate:
+                            self.GLib.idle_add(self.on_activate)
+                        invocation.return_value(None)
+                    elif method_name == "SetDisplayMode":
+                        mode_arg = params.unpack()[0]
+                        self.current_display_mode = mode_arg
+                        self.app_props["DisplayMode"] = mode_arg
+                        if self.on_display_mode_changed:
+                            self.GLib.idle_add(lambda: self.on_display_mode_changed(mode_arg))
+                        invocation.return_value(None)
+                    else:
+                        invocation.return_value(None)
+
+                def app_get_prop_cb(conn, sender, object_path, iface_name, prop_name):
+                    val = self.app_props.get(prop_name)
+                    if val is not None:
+                        if isinstance(val, bool):
+                            return self.GLib.Variant('b', val)
+                        return self.GLib.Variant('s', str(val))
+                    return None
+
+                def app_set_prop_cb(conn, sender, object_path, iface_name, prop_name, value):
+                    if prop_name == "DisplayMode":
+                        mode_arg = value.unpack()
+                        self.current_display_mode = mode_arg
+                        self.app_props["DisplayMode"] = mode_arg
+                        if self.on_display_mode_changed:
+                            self.GLib.idle_add(lambda: self.on_display_mode_changed(mode_arg))
+                        return True
+                    return False
+
+                self.app_reg_id = self.bus.register_object(
+                    "/io/github/networkmonitor/App",
+                    app_iface,
+                    app_method_call_cb,
+                    app_get_prop_cb,
+                    app_set_prop_cb
+                )
+
+                self.app_owner_id = self.Gio.bus_own_name_on_connection(
+                    self.bus,
+                    "io.github.networkmonitor.App",
+                    self.Gio.BusNameOwnerFlags.NONE,
+                    None,
+                    None
+                )
+            except Exception as e:
+                print(f"[Tray] App D-Bus interface registration error: {e}")
+
             self.is_running = True
         except Exception as e:
             print(f"[Tray] Failed to start StatusNotifierItem: {e}")
@@ -271,7 +380,6 @@ class LinuxDBusTray(TrayController):
         self.tooltip_text = text
         if self.is_running and self.bus:
             try:
-                # Emit NewToolTip signal
                 self.bus.emit_signal(
                     None,
                     "/StatusNotifierItem",
@@ -326,6 +434,47 @@ class LinuxDBusTray(TrayController):
         new_label = format_telemetry_label(display_mode, snapshot=snapshot, normal_str=normal_str, vpn_str=vpn_str, is_vpn=is_vpn)
         self.update_label(new_label)
 
+        # Update telemetry properties for GNOME Shell Extension
+        if snapshot:
+            try:
+                speeds = snapshot.get("speeds", {})
+                today = snapshot.get("today_usage", {})
+                vpn = snapshot.get("vpn", snapshot.get("throne", {}))
+                ping = snapshot.get("ping", {})
+
+                self.app_props["IsVpnActive"] = bool(is_vpn)
+                self.app_props["VpnName"] = vpn.get("service_type", "VPN") if is_vpn else "Direct"
+                self.app_props["NetworkName"] = snapshot.get("active_iface", "Direct")
+                self.app_props["NormalDownStr"] = speeds.get("normal_down_str", "0 B/s")
+                self.app_props["NormalUpStr"] = speeds.get("normal_up_str", "0 B/s")
+                self.app_props["VpnDownStr"] = speeds.get("vpn_down_str", "0 B/s")
+                self.app_props["VpnUpStr"] = speeds.get("vpn_up_str", "0 B/s")
+                self.app_props["TotalDownStr"] = speeds.get("total_down_str", "0 B/s")
+                self.app_props["TotalUpStr"] = speeds.get("total_up_str", "0 B/s")
+                self.app_props["TodayTotalStr"] = today.get("grand_total_str", "0 B")
+                self.app_props["TodayNormalStr"] = today.get("normal_total_str", "0 B")
+                self.app_props["TodayVpnStr"] = today.get("vpn_total_str", "0 B")
+                lat = ping.get("latency_ms")
+                self.app_props["PingStr"] = f"{lat} ms" if lat is not None else "--"
+                self.app_props["DisplayMode"] = display_mode
+
+                if self.is_running and self.bus:
+                    changed = {}
+                    for k, v in self.app_props.items():
+                        if isinstance(v, bool):
+                            changed[k] = self.GLib.Variant('b', v)
+                        else:
+                            changed[k] = self.GLib.Variant('s', str(v))
+                    self.bus.emit_signal(
+                        None,
+                        "/io/github/networkmonitor/App",
+                        "org.freedesktop.DBus.Properties",
+                        "PropertiesChanged",
+                        self.GLib.Variant("(sa{sv}as)", ("io.github.networkmonitor.App", changed, []))
+                    )
+            except Exception:
+                pass
+
     def stop(self):
         if not self.is_running:
             return
@@ -336,6 +485,12 @@ class LinuxDBusTray(TrayController):
             if self.owner_id:
                 self.Gio.bus_unown_name(self.owner_id)
                 self.owner_id = None
+            if self.app_reg_id and self.bus:
+                self.bus.unregister_object(self.app_reg_id)
+                self.app_reg_id = None
+            if self.app_owner_id:
+                self.Gio.bus_unown_name(self.app_owner_id)
+                self.app_owner_id = None
             self.is_running = False
         except Exception as e:
             print(f"[Tray] Error stopping tray: {e}")
@@ -506,10 +661,14 @@ class WindowsTray(TrayController):
         self.is_running = False
 
 
-def create_tray_controller(on_activate: Optional[Callable[[], None]] = None, on_quit: Optional[Callable[[], None]] = None) -> TrayController:
+def create_tray_controller(
+    on_activate: Optional[Callable[[], None]] = None,
+    on_quit: Optional[Callable[[], None]] = None,
+    on_display_mode_changed: Optional[Callable[[str], None]] = None
+) -> TrayController:
     """Factory creating the appropriate native tray controller for the current OS."""
     if platform.system() == "Linux":
-        return LinuxDBusTray(on_activate=on_activate, on_quit=on_quit)
+        return LinuxDBusTray(on_activate=on_activate, on_quit=on_quit, on_display_mode_changed=on_display_mode_changed)
     elif platform.system() == "Windows":
         return WindowsTray(on_activate=on_activate, on_quit=on_quit)
     return TrayController(on_activate=on_activate, on_quit=on_quit)

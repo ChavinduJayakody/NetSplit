@@ -1,0 +1,18 @@
+.netsplit-panel-label {
+    font-weight: 700;
+    font-size: 11pt;
+    margin-left: 4px;
+    margin-right: 4px;
+    letter-spacing: 0.02em;
+}
+
+.netsplit-header-item {
+    font-weight: 700;
+    font-size: 1.05em;
+    color: #38bdf8;
+}
+
+.netsplit-stat-value {
+    font-family: monospace;
+    font-weight: 600;
+}

@@ -214,6 +214,18 @@ class StatsDatabase:
         clamped = max(30, min(100, int(opacity)))
         self.set_setting("hud_opacity", str(clamped))
 
+    def get_gnome_ext_enabled(self) -> bool:
+        return self.get_bool_setting("gnome_ext_enabled", default=False)
+
+    def set_gnome_ext_enabled(self, enabled: bool):
+        self.set_bool_setting("gnome_ext_enabled", enabled)
+
+    def get_gnome_ext_display_mode(self) -> str:
+        return self.get_setting("gnome_ext_display_mode", default="sigma_today")
+
+    def set_gnome_ext_display_mode(self, mode: str):
+        self.set_setting("gnome_ext_display_mode", mode)
+
     def flush(self):
         """Flush any pending buffered traffic deltas into SQLite."""
         with self._lock:

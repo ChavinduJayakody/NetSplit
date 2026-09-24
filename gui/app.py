@@ -36,6 +36,14 @@ from core.collector import NetworkCollector, format_bytes, format_speed
 from core.tray import create_tray_controller, DISPLAY_MODES
 from core.autostart import is_autostart_supported, is_autostart_enabled, set_autostart
 from core.security import mask_ip
+from core.gnome_extension import (
+    is_gnome_available,
+    is_arch_linux,
+    is_extension_enabled,
+    is_extension_installed,
+    install_and_enable_extension,
+    disable_extension
+)
 from gui.hud import FloatingHudWindow
 
 
@@ -799,6 +807,40 @@ class MainWindow(Adw.ApplicationWindow):
 
         page.add(hud_group)
 
+        # 4b. GNOME Shell Top Bar Extension HUD Group (Arch Linux / GNOME)
+        if is_gnome_available():
+            ext_installed = is_extension_installed()
+            ext_enabled = is_extension_enabled()
+            if ext_enabled and not self.collector.db.get_gnome_ext_enabled():
+                self.collector.db.set_gnome_ext_enabled(True)
+
+            arch_badge = " (Arch Linux Native)" if is_arch_linux() else ""
+            gnome_ext_group = Adw.PreferencesGroup(
+                title=f"GNOME Top Bar Extension HUD{arch_badge}",
+                description="Live telemetry directly on the GNOME Shell top panel (e.g. Σ 2.59 GB)"
+            )
+
+            self.gnome_ext_enable_row = Adw.SwitchRow(title="Show Top Bar Extension HUD")
+            sub_text = "Active on top panel" if ext_enabled else "Embed live network usage directly into GNOME top bar"
+            self.gnome_ext_enable_row.set_subtitle(sub_text)
+            self.gnome_ext_enable_row.set_active(ext_enabled)
+            self.gnome_ext_enable_row.connect("notify::active", self._on_gnome_ext_enabled_changed)
+            gnome_ext_group.add(self.gnome_ext_enable_row)
+
+            self.gnome_ext_mode_row = Adw.ComboRow(title="Top Bar Display Metric")
+            self.gnome_ext_mode_row.set_subtitle("Choose which statistic is featured on the top panel")
+            gnome_ext_names = [name for k, name in DISPLAY_MODES if k != "icon_only"]
+            self.gnome_ext_keys = [k for k, _ in DISPLAY_MODES if k != "icon_only"]
+            gnome_ext_model = Gtk.StringList.new(gnome_ext_names)
+            self.gnome_ext_mode_row.set_model(gnome_ext_model)
+            cur_ext_mode = self.collector.db.get_gnome_ext_display_mode()
+            idx_ext = self.gnome_ext_keys.index(cur_ext_mode) if cur_ext_mode in self.gnome_ext_keys else 0
+            self.gnome_ext_mode_row.set_selected(idx_ext)
+            self.gnome_ext_mode_row.connect("notify::selected", self._on_gnome_ext_mode_changed)
+            gnome_ext_group.add(self.gnome_ext_mode_row)
+
+            page.add(gnome_ext_group)
+
         # 5. VPN and Proxy Engine Group
         proxy_settings_group = Adw.PreferencesGroup(
             title="VPN and Proxy Compatibility",
@@ -969,6 +1011,30 @@ class MainWindow(Adw.ApplicationWindow):
             self.collector.db.set_hud_opacity(op)
             if self.hud_window:
                 self.hud_window.set_opacity(op / 100.0)
+
+    def _on_gnome_ext_enabled_changed(self, row, param):
+        enabled = row.get_active()
+        self.collector.db.set_gnome_ext_enabled(enabled)
+        if enabled:
+            ok, msg = install_and_enable_extension()
+            if hasattr(self, "gnome_ext_enable_row"):
+                self.gnome_ext_enable_row.set_subtitle("Active on top panel" if ok else f"Extension note: {msg}")
+            if hasattr(self.app, "start_tray"):
+                self.app.start_tray()
+        else:
+            disable_extension()
+            if hasattr(self, "gnome_ext_enable_row"):
+                self.gnome_ext_enable_row.set_subtitle("Extension disabled")
+
+    def _on_gnome_ext_mode_changed(self, row, param):
+        idx = row.get_selected()
+        if hasattr(self, "gnome_ext_keys") and 0 <= idx < len(self.gnome_ext_keys):
+            mode = self.gnome_ext_keys[idx]
+            self.collector.db.set_gnome_ext_display_mode(mode)
+            if hasattr(self.app, "tray") and self.app.tray and hasattr(self.app.tray, "app_props"):
+                self.app.tray.current_display_mode = mode
+                self.app.tray.app_props["DisplayMode"] = mode
+                self._on_tick()
 
     def sync_hud_visibility(self):
         enabled = self.collector.db.get_hud_enabled()
@@ -1365,12 +1431,19 @@ class NetworkMonitorApp(Adw.Application):
         quit_action.connect("activate", lambda *_: self.quit_application())
         self.add_action(quit_action)
 
-        # Initialize System Tray Controller
+        # Initialize System Tray & D-Bus Telemetry Controller
+        def _on_mode_dbus(new_mode):
+            if self.collector and self.collector.db:
+                self.collector.db.set_gnome_ext_display_mode(new_mode)
+            if self.main_window and hasattr(self.main_window, "_on_tick"):
+                self.main_window._on_tick()
+
         self.tray = create_tray_controller(
             on_activate=self._on_tray_activate,
-            on_quit=self.quit_application
+            on_quit=self.quit_application,
+            on_display_mode_changed=_on_mode_dbus
         )
-        if self.collector.db.get_tray_enabled():
+        if self.collector.db.get_tray_enabled() or self.collector.db.get_gnome_ext_enabled():
             self.tray.start()
 
         # Hold the application so hiding the window keeps the process running

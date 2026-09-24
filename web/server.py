@@ -118,6 +118,7 @@ class NetworkMonitorHandler(BaseHTTPRequestHandler):
             return
         from core.autostart import is_autostart_supported, is_autostart_enabled
         import platform
+        from core.gnome_extension import is_gnome_available, is_arch_linux, is_extension_enabled
         payload = {
             "mask_ips": bool(self.collector.db.get_mask_ips()) if not isinstance(self.collector.db.get_mask_ips(), (type, getattr(sys.modules.get("unittest.mock", None), "MagicMock", ()))) else True,
             "exclusive_mode": bool(self.collector.db.get_exclusive_mode()) if not isinstance(self.collector.db.get_exclusive_mode(), (type, getattr(sys.modules.get("unittest.mock", None), "MagicMock", ()))) else True,
@@ -128,6 +129,10 @@ class NetworkMonitorHandler(BaseHTTPRequestHandler):
             "hud_enabled": bool(self.collector.db.get_hud_enabled()) if not isinstance(self.collector.db.get_hud_enabled(), (type, getattr(sys.modules.get("unittest.mock", None), "MagicMock", ()))) else False,
             "hud_display_mode": str(self.collector.db.get_hud_display_mode()) if not isinstance(self.collector.db.get_hud_display_mode(), (type, getattr(sys.modules.get("unittest.mock", None), "MagicMock", ()))) else "speeds_total",
             "hud_opacity": int(self.collector.db.get_hud_opacity()) if isinstance(self.collector.db.get_hud_opacity(), (int, float)) else 90,
+            "gnome_ext_supported": is_gnome_available(),
+            "is_arch_linux": is_arch_linux(),
+            "gnome_ext_enabled": (is_extension_enabled() if is_gnome_available() else False) or bool(self.collector.db.get_gnome_ext_enabled()),
+            "gnome_ext_display_mode": str(self.collector.db.get_gnome_ext_display_mode()),
             "custom_vpn_iface": str(self.collector.db.get_setting("custom_vpn_iface", "") or "") if not isinstance(self.collector.db.get_setting("custom_vpn_iface", ""), (type, getattr(sys.modules.get("unittest.mock", None), "MagicMock", ()))) else "",
             "autostart_supported": is_autostart_supported(),
             "autostart": is_autostart_enabled() if is_autostart_supported() else False,
@@ -156,6 +161,16 @@ class NetworkMonitorHandler(BaseHTTPRequestHandler):
             self.collector.db.set_hud_display_mode(str(payload["hud_display_mode"]))
         if "hud_opacity" in payload:
             self.collector.db.set_hud_opacity(int(payload["hud_opacity"]))
+        if "gnome_ext_enabled" in payload:
+            enable_ext = bool(payload["gnome_ext_enabled"])
+            self.collector.db.set_gnome_ext_enabled(enable_ext)
+            from core.gnome_extension import install_and_enable_extension, disable_extension
+            if enable_ext:
+                install_and_enable_extension()
+            else:
+                disable_extension()
+        if "gnome_ext_display_mode" in payload:
+            self.collector.db.set_gnome_ext_display_mode(str(payload["gnome_ext_display_mode"]))
         if "theme" in payload:
             self.collector.db.set_setting("theme", str(payload["theme"]))
         if "custom_vpn_iface" in payload:
