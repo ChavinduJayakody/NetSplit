@@ -214,7 +214,7 @@ scripts\build_exe.bat
 ## 🤖 CI/CD Automation
 
 NetSplit uses **GitHub Actions** (`.github/workflows/release.yml`) for automated builds:
-- Triggers on every release tag push (`git tag v1.3.0 && git push origin v1.3.0`) or manual workflow dispatch.
+- Triggers on every release tag push (`git tag v1.4.0 && git push origin v1.4.0`) or manual workflow dispatch.
 - Compiles both `NetSplit-Windows-x64.exe` and `NetSplit-Linux-x86_64.AppImage`.
 - Generates `SHA256SUMS.txt` cryptographic verification checksums.
 - Automatically attaches all assets to the official GitHub Release.

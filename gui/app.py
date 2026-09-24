@@ -736,7 +736,36 @@ class MainWindow(Adw.ApplicationWindow):
 
         page.add(proxy_settings_group)
 
-        # 5. Data & Storage Management Group
+        # 5. Network Tools & Troubleshooting Group
+        tools_group = Adw.PreferencesGroup(
+            title="Network Tools & Troubleshooting",
+            description="One-click diagnostic repair utilities for DNS, proxy, and connection stalls"
+        )
+
+        flush_dns_row = Adw.ActionRow(title="Flush DNS Resolver Cache")
+        flush_dns_row.set_subtitle("Invalidates cached hostnames to resolve broken DNS after VPN/proxy use")
+        self.btn_flush_dns = Gtk.Button(label="Flush DNS", valign=Gtk.Align.CENTER)
+        self.btn_flush_dns.connect("clicked", self._on_flush_dns_clicked)
+        flush_dns_row.add_suffix(self.btn_flush_dns)
+        tools_group.add(flush_dns_row)
+
+        reset_proxy_row = Adw.ActionRow(title="Reset Lingering System Proxy")
+        reset_proxy_row.set_subtitle("Clears dead localhost proxy redirects left behind by crashed VPN/proxy clients")
+        self.btn_reset_proxy = Gtk.Button(label="Reset Proxy", valign=Gtk.Align.CENTER)
+        self.btn_reset_proxy.connect("clicked", self._on_reset_proxy_clicked)
+        reset_proxy_row.add_suffix(self.btn_reset_proxy)
+        tools_group.add(reset_proxy_row)
+
+        renew_dhcp_row = Adw.ActionRow(title="Renew DHCP / Reconnect Network")
+        renew_dhcp_row.set_subtitle("Refreshes IP address lease and re-synchronizes the network stack")
+        self.btn_renew_dhcp = Gtk.Button(label="Renew Network", valign=Gtk.Align.CENTER)
+        self.btn_renew_dhcp.connect("clicked", self._on_renew_dhcp_clicked)
+        renew_dhcp_row.add_suffix(self.btn_renew_dhcp)
+        tools_group.add(renew_dhcp_row)
+
+        page.add(tools_group)
+
+        # 6. Data & Storage Management Group
         data_group = Adw.PreferencesGroup(
             title="Data and History Management",
             description="Local SQLite statistics storage and database maintenance"
@@ -765,12 +794,12 @@ class MainWindow(Adw.ApplicationWindow):
 
         page.add(data_group)
 
-        # 6. About NetSplit Group (Featuring netsplit.svg icon)
+        # 7. About NetSplit Group (Featuring netsplit.svg icon)
         about_group = Adw.PreferencesGroup(title="About NetSplit")
 
         banner_card = Adw.ActionRow(
             title="NetSplit",
-            subtitle="Cross-Platform Network &amp; VPN Traffic Monitor • v1.3.0"
+            subtitle="Cross-Platform Network &amp; VPN Traffic Monitor • v1.4.0"
         )
         banner_card.set_activatable(False)
         svg_path = os.path.join(self.assets_dir, "netsplit.svg")
@@ -847,6 +876,30 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_clear_all_clicked(self, _):
         self.collector.clear_all_history()
         self._on_tick()
+
+    def _on_flush_dns_clicked(self, btn):
+        from core.network_tools import flush_dns
+        btn.set_sensitive(False)
+        btn.set_label("Flushing...")
+        res = flush_dns()
+        btn.set_label("Flushed ✓" if res.get("success") else "Failed")
+        GLib.timeout_add(2500, lambda: (btn.set_label("Flush DNS"), btn.set_sensitive(True)))
+
+    def _on_reset_proxy_clicked(self, btn):
+        from core.network_tools import reset_system_proxy
+        btn.set_sensitive(False)
+        btn.set_label("Resetting...")
+        res = reset_system_proxy()
+        btn.set_label("Reset ✓" if res.get("success") else "Failed")
+        GLib.timeout_add(2500, lambda: (btn.set_label("Reset Proxy"), btn.set_sensitive(True)))
+
+    def _on_renew_dhcp_clicked(self, btn):
+        from core.network_tools import renew_dhcp
+        btn.set_sensitive(False)
+        btn.set_label("Renewing...")
+        res = renew_dhcp()
+        btn.set_label("Renewed ✓" if res.get("success") else "Failed")
+        GLib.timeout_add(2500, lambda: (btn.set_label("Renew Network"), btn.set_sensitive(True)))
 
     # --- Cairo Waveform Drawing ---
     def _draw_speed_graph(self, area, cr, width, height):

@@ -300,6 +300,113 @@ class TestWindowsCompatibility(unittest.TestCase):
                     self.assertEqual(vpn_iface, "Ethernet 2")
 
 
+class TestNetworkToolsAndApi(unittest.TestCase):
+    def test_flush_dns_windows(self):
+        from unittest.mock import patch, MagicMock
+        from core.network_tools import flush_dns
+
+        mock_proc = MagicMock(returncode=0, stdout="Successfully flushed the DNS Resolver Cache.", stderr="")
+        with patch("platform.system", return_value="Windows"), \
+             patch("core.network_tools.run_command_hidden", return_value=mock_proc) as mock_run:
+            res = flush_dns()
+            self.assertTrue(res["success"])
+            self.assertIn("flushed", res["message"].lower())
+            mock_run.assert_called_once_with(["ipconfig", "/flushdns"], timeout=4.0)
+
+    def test_flush_dns_linux(self):
+        from unittest.mock import patch, MagicMock
+        from core.network_tools import flush_dns
+
+        mock_proc = MagicMock(returncode=0, stdout="Cache flushed", stderr="")
+        with patch("platform.system", return_value="Linux"), \
+             patch("core.network_tools.run_command_hidden", return_value=mock_proc):
+            res = flush_dns()
+            self.assertTrue(res["success"])
+
+    def test_reset_system_proxy_windows(self):
+        from unittest.mock import patch, MagicMock
+        from core.network_tools import reset_system_proxy
+
+        mock_proc = MagicMock(returncode=0, stdout="Direct access (no proxy server).", stderr="")
+        with patch("platform.system", return_value="Windows"), \
+             patch("core.network_tools.run_command_hidden", return_value=mock_proc) as mock_run:
+            res = reset_system_proxy()
+            self.assertTrue(res["success"])
+            self.assertEqual(mock_run.call_count, 2)
+
+    def test_reset_system_proxy_linux(self):
+        from unittest.mock import patch, MagicMock
+        from core.network_tools import reset_system_proxy
+
+        mock_proc = MagicMock(returncode=0, stdout="", stderr="")
+        with patch("platform.system", return_value="Linux"), \
+             patch("core.network_tools.run_command_hidden", return_value=mock_proc):
+            res = reset_system_proxy()
+            self.assertTrue(res["success"])
+
+    def test_renew_dhcp_windows(self):
+        from unittest.mock import patch, MagicMock
+        from core.network_tools import renew_dhcp
+
+        mock_proc = MagicMock(returncode=0, stdout="Renewed IP", stderr="")
+        with patch("platform.system", return_value="Windows"), \
+             patch("core.network_tools.run_command_hidden", return_value=mock_proc):
+            res = renew_dhcp()
+            self.assertTrue(res["success"])
+
+    def test_renew_dhcp_linux(self):
+        from unittest.mock import patch, MagicMock
+        from core.network_tools import renew_dhcp
+
+        mock_proc = MagicMock(returncode=0, stdout="", stderr="")
+        with patch("platform.system", return_value="Linux"), \
+             patch("core.network_tools.run_command_hidden", return_value=mock_proc):
+            res = renew_dhcp()
+            self.assertTrue(res["success"])
+
+    def test_web_server_settings_and_tools_api(self):
+        import urllib.request
+        import json
+        from web.server import start_web_server
+
+        mock_collector = unittest.mock.MagicMock()
+        mock_collector.db.get_mask_ips.return_value = True
+        mock_collector.db.get_exclusive_mode.return_value = True
+        mock_collector.db.get_minimize_to_tray.return_value = True
+        mock_collector.db.get_start_minimized.return_value = False
+        mock_collector.db.get_tray_enabled.return_value = True
+        mock_collector.db.get_setting.return_value = ""
+
+        server = start_web_server(mock_collector, host="127.0.0.1", port=18765)
+        try:
+            # 1. GET /api/settings
+            req = urllib.request.urlopen("http://127.0.0.1:18765/api/settings", timeout=2)
+            self.assertEqual(req.status, 200)
+            data = json.loads(req.read().decode())
+            self.assertIn("version", data)
+            self.assertEqual(data["version"], "1.4.0")
+            self.assertTrue(data["mask_ips"])
+
+            # 2. POST /api/settings
+            post_data = json.dumps({"mask_ips": False, "exclusive_mode": False}).encode()
+            post_req = urllib.request.Request("http://127.0.0.1:18765/api/settings", data=post_data, headers={"Content-Type": "application/json"})
+            resp = urllib.request.urlopen(post_req, timeout=2)
+            self.assertEqual(resp.status, 200)
+            post_res = json.loads(resp.read().decode())
+            self.assertTrue(post_res["success"])
+            mock_collector.db.set_mask_ips.assert_called_with(False)
+            mock_collector.db.set_exclusive_mode.assert_called_with(False)
+
+            # 3. POST /api/tools/reset-today
+            tool_req = urllib.request.Request("http://127.0.0.1:18765/api/tools/reset-today", data=b"{}", headers={"Content-Type": "application/json"})
+            tool_resp = urllib.request.urlopen(tool_req, timeout=2)
+            self.assertEqual(tool_resp.status, 200)
+            mock_collector.reset_today.assert_called_once()
+        finally:
+            server.shutdown()
+            server.server_close()
+
+
 class TestCollector(unittest.TestCase):
     def test_collector_snapshot(self):
         collector = NetworkCollector(sample_interval=0.5)

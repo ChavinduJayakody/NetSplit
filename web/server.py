@@ -52,12 +52,21 @@ class NetworkMonitorHandler(BaseHTTPRequestHandler):
         self.send_header("X-Frame-Options", "SAMEORIGIN")
         self.send_header("Referrer-Policy", "no-referrer")
 
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self._send_security_headers()
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
     def do_GET(self):
         clean_path = self.path.split("?")[0].split("#")[0]
         if clean_path in ("/", "/index.html"):
             self._serve_index()
         elif clean_path == "/api/stats":
             self._serve_stats()
+        elif clean_path == "/api/settings":
+            self._serve_get_settings()
         elif clean_path == "/api/history":
             self._serve_history()
         elif clean_path == "/api/stream":
@@ -66,6 +75,95 @@ class NetworkMonitorHandler(BaseHTTPRequestHandler):
             self._serve_static(clean_path[8:])
         else:
             self.send_error(404, "Not Found")
+
+    def do_POST(self):
+        clean_path = self.path.split("?")[0].split("#")[0]
+        if not self.collector:
+            self.send_error(500, "Collector not attached")
+            return
+
+        content_length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+        try:
+            payload = json.loads(body.decode("utf-8")) if body else {}
+        except Exception:
+            payload = {}
+
+        if clean_path == "/api/settings":
+            self._handle_post_settings(payload)
+        elif clean_path == "/api/tools/flush-dns":
+            from core.network_tools import flush_dns
+            res = flush_dns()
+            self._send_json_response(res)
+        elif clean_path == "/api/tools/reset-proxy":
+            from core.network_tools import reset_system_proxy
+            res = reset_system_proxy()
+            self._send_json_response(res)
+        elif clean_path == "/api/tools/renew-dhcp":
+            from core.network_tools import renew_dhcp
+            res = renew_dhcp()
+            self._send_json_response(res)
+        elif clean_path == "/api/tools/reset-today":
+            self.collector.reset_today()
+            self._send_json_response({"success": True, "message": "Today's usage statistics reset to 0."})
+        elif clean_path == "/api/tools/clear-history":
+            self.collector.clear_all_history()
+            self._send_json_response({"success": True, "message": "All historical database records cleared."})
+        else:
+            self.send_error(404, "Not Found")
+
+    def _serve_get_settings(self):
+        if not self.collector:
+            self.send_error(500, "Collector not attached")
+            return
+        from core.autostart import is_autostart_supported, is_autostart_enabled
+        import platform
+        payload = {
+            "mask_ips": self.collector.db.get_mask_ips(),
+            "exclusive_mode": self.collector.db.get_exclusive_mode(),
+            "minimize_to_tray": self.collector.db.get_minimize_to_tray(),
+            "start_minimized": self.collector.db.get_start_minimized(),
+            "tray_enabled": self.collector.db.get_tray_enabled(),
+            "custom_vpn_iface": self.collector.db.get_setting("custom_vpn_iface", ""),
+            "autostart_supported": is_autostart_supported(),
+            "autostart": is_autostart_enabled() if is_autostart_supported() else False,
+            "theme": self.collector.db.get_setting("theme", "0"),
+            "version": "1.4.0",
+            "platform": platform.system(),
+        }
+        self._send_json_response(payload)
+
+    def _handle_post_settings(self, payload: dict):
+        if "mask_ips" in payload:
+            self.collector.db.set_mask_ips(bool(payload["mask_ips"]))
+        if "exclusive_mode" in payload:
+            self.collector.db.set_exclusive_mode(bool(payload["exclusive_mode"]))
+        if "minimize_to_tray" in payload:
+            self.collector.db.set_minimize_to_tray(bool(payload["minimize_to_tray"]))
+        if "start_minimized" in payload:
+            self.collector.db.set_start_minimized(bool(payload["start_minimized"]))
+        if "tray_enabled" in payload:
+            self.collector.db.set_tray_enabled(bool(payload["tray_enabled"]))
+        if "theme" in payload:
+            self.collector.db.set_setting("theme", str(payload["theme"]))
+        if "custom_vpn_iface" in payload:
+            val = str(payload["custom_vpn_iface"]).strip()
+            self.collector.db.set_setting("custom_vpn_iface", val)
+            self.collector.vpn.set_custom_interface(val)
+        if "autostart" in payload:
+            from core.autostart import set_autostart
+            set_autostart(bool(payload["autostart"]))
+
+        self._send_json_response({"success": True, "message": "Settings saved successfully."})
+
+    def _send_json_response(self, data: dict, status: int = 200):
+        body = json.dumps(data).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self._send_security_headers()
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def _get_sanitized_snapshot(self) -> dict:
         if not self.collector:

@@ -271,6 +271,272 @@
       background: linear-gradient(90deg, var(--accent-direct), var(--accent-vpn));
       transition: width 0.4s ease;
     }
+
+    /* Settings Button in Header */
+    .btn-settings {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      transition: all 0.2s;
+    }
+    .btn-settings:hover {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    /* Modal Backdrop & Content */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 16px;
+      animation: fadeIn 0.15s ease-out;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .modal-content {
+      background: #161b22;
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      max-width: 640px;
+      width: 100%;
+      max-height: 88vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+    }
+    .modal-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      background: #161b22;
+      z-index: 10;
+    }
+    .modal-close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.8rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px 8px;
+      border-radius: 8px;
+      transition: color 0.2s;
+    }
+    .modal-close-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.1);
+    }
+    .modal-body {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 22px;
+    }
+    .settings-group {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .settings-group-title {
+      font-size: 0.92rem;
+      font-weight: 700;
+      color: #e6edf3;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .tools-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .tool-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 12px 16px;
+      transition: background 0.2s;
+    }
+    .tool-card:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .tool-info strong {
+      font-size: 0.9rem;
+      display: block;
+      color: var(--text-main);
+    }
+    .tool-info p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .setting-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 4px 0;
+    }
+    .setting-info strong {
+      font-size: 0.9rem;
+      display: block;
+      color: var(--text-main);
+    }
+    .setting-info p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    /* Switch toggle */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      inset: 0;
+      background-color: #30363d;
+      transition: 0.25s;
+      border-radius: 24px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.25s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #38bdf8;
+    }
+    input:checked + .slider:before {
+      transform: translateX(20px);
+    }
+    /* Action Buttons */
+    .btn-action, .btn-secondary, .btn-danger {
+      padding: 7px 14px;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .btn-action {
+      background: rgba(56, 189, 248, 0.15);
+      border-color: rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+    }
+    .btn-action:hover:not(:disabled) {
+      background: rgba(56, 189, 248, 0.3);
+    }
+    .btn-action:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: var(--border-subtle);
+      color: var(--text-main);
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.16);
+    }
+    .btn-danger {
+      background: rgba(248, 113, 113, 0.15);
+      border-color: rgba(248, 113, 113, 0.4);
+      color: #f87171;
+    }
+    .btn-danger:hover:not(:disabled) {
+      background: rgba(248, 113, 113, 0.3);
+    }
+    .tool-alert {
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: fadeIn 0.2s;
+    }
+    .tool-alert-success {
+      background: rgba(74, 222, 128, 0.15);
+      border: 1px solid rgba(74, 222, 128, 0.35);
+      color: #4ade80;
+    }
+    .tool-alert-error {
+      background: rgba(248, 113, 113, 0.15);
+      border: 1px solid rgba(248, 113, 113, 0.35);
+      color: #f87171;
+    }
+    .tool-alert-info {
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #38bdf8;
+    }
+    .copyable {
+      cursor: pointer;
+      position: relative;
+      transition: color 0.15s;
+    }
+    .copyable:hover {
+      color: #38bdf8 !important;
+      text-decoration: underline;
+    }
+    .copy-toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1f2937;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #f3f4f6;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+      z-index: 2000;
+      animation: fadeIn 0.2s;
+    }
   </style>
 </head>
 <body>
@@ -293,6 +559,9 @@
           <span class="dot"></span>
           <span id="vpn-status-badge">VPN Disconnected</span>
         </div>
+        <button id="btn-settings-open" class="btn-settings" onclick="openSettings()" title="Settings &amp; Network Tools">
+          ⚙️ Settings &amp; Tools
+        </button>
       </div>
     </header>
 
@@ -401,11 +670,11 @@
           </div>
           <div class="info-row">
             <span class="label">Local IP</span>
-            <span class="val" id="info-local-ip">--</span>
+            <span class="val copyable" id="info-local-ip" title="Click to copy IP" onclick="copyIpText(this)">--</span>
           </div>
           <div class="info-row">
             <span class="label">Public Egress IP</span>
-            <span class="val" id="info-public-ip">--</span>
+            <span class="val copyable" id="info-public-ip" title="Click to copy IP" onclick="copyIpText(this)">--</span>
           </div>
         </div>
       </div>
@@ -448,6 +717,125 @@
       </div>
     </div>
   </div>
+
+  <!-- Settings & Network Tools Modal -->
+  <div id="modal-settings" class="modal-backdrop" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 1.5rem;">⚙️</span>
+          <div>
+            <h2 style="font-size: 1.25rem; font-weight: 700; line-height: 1.2;">Settings &amp; Network Tools</h2>
+            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Preferences and 1-click diagnostic repair actions</p>
+          </div>
+        </div>
+        <button id="btn-settings-close" class="modal-close-btn" onclick="closeSettings()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Toast / Status Alert Inside Modal -->
+        <div id="tool-alert" class="tool-alert" style="display: none;"></div>
+
+        <!-- Section 1: Network Diagnostic & Repair Tools -->
+        <div class="settings-group">
+          <div class="settings-group-title">🛠️ Network Diagnostic &amp; Repair Tools</div>
+          <div class="tools-grid">
+            <div class="tool-card">
+              <div class="tool-info">
+                <strong>Flush DNS Cache</strong>
+                <p>Clears OS resolver cache. Fixes DNS resolution failures after VPN/proxy use.</p>
+              </div>
+              <button class="btn-action" onclick="executeTool('flush-dns', this)">Flush DNS</button>
+            </div>
+
+            <div class="tool-card">
+              <div class="tool-info">
+                <strong>Reset System Proxy</strong>
+                <p>Clears dead localhost proxy redirects left by crashed VPN/proxy clients.</p>
+              </div>
+              <button class="btn-action" onclick="executeTool('reset-proxy', this)">Reset Proxy</button>
+            </div>
+
+            <div class="tool-card">
+              <div class="tool-info">
+                <strong>Renew Network (DHCP)</strong>
+                <p>Renews IP lease and re-synchronizes the network adapter connection.</p>
+              </div>
+              <button class="btn-action" onclick="executeTool('renew-dhcp', this)">Renew DHCP</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Privacy & Accounting Preferences -->
+        <div class="settings-group">
+          <div class="settings-group-title">🛡️ Privacy &amp; Accounting Preferences</div>
+          
+          <div class="setting-row">
+            <div class="setting-info">
+              <strong>Mask IP Addresses (Privacy Mode)</strong>
+              <p>Hides public and local IP addresses across dashboard views.</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="setting-mask-ips" onchange="updateSetting('mask_ips', this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <strong>Exclusive Accounting Mode</strong>
+              <p>When VPN is active, direct traffic reads 0 B/s and counts 100% as VPN.</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="setting-exclusive" onchange="updateSetting('exclusive_mode', this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row" id="row-autostart">
+            <div class="setting-info">
+              <strong>Launch on System Startup</strong>
+              <p>Starts NetSplit silently on user login.</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="setting-autostart" onchange="updateSetting('autostart', this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <strong>Minimize to Tray on Close</strong>
+              <p>Keep running in background notification tray when closing window.</p>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="setting-min-tray" onchange="updateSetting('minimize_to_tray', this.checked)">
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Section 3: Data Maintenance -->
+        <div class="settings-group">
+          <div class="settings-group-title">📊 Data &amp; History Maintenance</div>
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <button class="btn-secondary" onclick="executeTool('reset-today', this)">Reset Today's Stats</button>
+            <button class="btn-danger" onclick="confirmClearHistory(this)">Clear All History</button>
+          </div>
+        </div>
+
+        <!-- Section 4: About NetSplit -->
+        <div class="settings-group" style="border-bottom: none; padding-bottom: 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; color: var(--text-muted); font-size: 0.85rem;">
+            <span>NetSplit <strong id="about-version" style="color: var(--text-main);">v1.4.0</strong></span>
+            <span>Cross-Platform Network &amp; VPN Traffic Monitor</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="copy-toast" class="copy-toast" style="display: none;"></div>
 
   <script>
     // Setup Chart.js
@@ -619,10 +1007,25 @@
         document.getElementById('info-band').textContent = (wifi.band || "--") + " (Ch " + (wifi.channel || "--") + ")";
       }
 
-      const gwPing = ping.gateway_ping_ms !== null ? ping.gateway_ping_ms.toFixed(2) + " ms" : "--";
-      const inetPing = ping.internet_ping_ms !== null ? ping.internet_ping_ms.toFixed(2) + " ms" : "--";
-      document.getElementById('info-ping-gw').textContent = gwPing;
-      document.getElementById('info-ping-inet').textContent = inetPing;
+      // Ping with latency status color coding
+      const gwPingEl = document.getElementById('info-ping-gw');
+      const inetPingEl = document.getElementById('info-ping-inet');
+      if (ping.gateway_ping_ms !== null) {
+        gwPingEl.textContent = ping.gateway_ping_ms.toFixed(1) + " ms";
+        gwPingEl.style.color = ping.gateway_ping_ms < 30 ? "var(--accent-total)" : (ping.gateway_ping_ms < 80 ? "var(--accent-warning)" : "var(--accent-danger)");
+      } else {
+        gwPingEl.textContent = "--";
+        gwPingEl.style.color = "";
+      }
+
+      if (ping.internet_ping_ms !== null) {
+        inetPingEl.textContent = ping.internet_ping_ms.toFixed(1) + " ms";
+        inetPingEl.style.color = ping.internet_ping_ms < 40 ? "var(--accent-total)" : (ping.internet_ping_ms < 100 ? "var(--accent-warning)" : "var(--accent-danger)");
+      } else {
+        inetPingEl.textContent = "--";
+        inetPingEl.style.color = "";
+      }
+
       document.getElementById('info-local-ip').textContent = wifi.local_ip || "--";
       document.getElementById('info-public-ip').textContent = ping.public_ip || "--";
 
@@ -686,6 +1089,125 @@
         .then(r => r.json())
         .then(updateDashboard)
         .catch(console.error);
+    }
+
+    // --- Settings & Tools Dialog Logic ---
+    function openSettings() {
+      document.getElementById('modal-settings').style.display = 'flex';
+      hideAlert();
+      fetchSettings();
+    }
+
+    function closeSettings() {
+      document.getElementById('modal-settings').style.display = 'none';
+    }
+
+    // Close on backdrop click or ESC key
+    window.addEventListener('click', function(e) {
+      const modal = document.getElementById('modal-settings');
+      if (e.target === modal) closeSettings();
+    });
+    window.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeSettings();
+    });
+
+    function showAlert(msg, type = 'success') {
+      const alertBox = document.getElementById('tool-alert');
+      alertBox.className = `tool-alert tool-alert-${type}`;
+      alertBox.textContent = (type === 'success' ? '✓ ' : (type === 'error' ? '✕ ' : 'ℹ ')) + msg;
+      alertBox.style.display = 'flex';
+    }
+
+    function hideAlert() {
+      const alertBox = document.getElementById('tool-alert');
+      alertBox.style.display = 'none';
+    }
+
+    function fetchSettings() {
+      fetch('/api/settings')
+        .then(r => r.json())
+        .then(data => {
+          if (!data) return;
+          const maskEl = document.getElementById('setting-mask-ips');
+          const exclEl = document.getElementById('setting-exclusive');
+          const autoEl = document.getElementById('setting-autostart');
+          const minEl = document.getElementById('setting-min-tray');
+          const autoRow = document.getElementById('row-autostart');
+          const verEl = document.getElementById('about-version');
+
+          if (maskEl) maskEl.checked = !!data.mask_ips;
+          if (exclEl) exclEl.checked = !!data.exclusive_mode;
+          if (minEl) minEl.checked = !!data.minimize_to_tray;
+          if (autoEl) autoEl.checked = !!data.autostart;
+          if (autoRow) autoRow.style.display = data.autostart_supported ? 'flex' : 'none';
+          if (verEl && data.version) verEl.textContent = 'v' + data.version + (data.platform ? ` (${data.platform})` : '');
+        })
+        .catch(err => {
+          console.warn("Failed to fetch settings:", err);
+        });
+    }
+
+    function updateSetting(key, value) {
+      hideAlert();
+      fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: value })
+      })
+      .then(r => r.json())
+      .then(res => {
+        showAlert(res.message || "Setting saved.", "success");
+      })
+      .catch(err => {
+        showAlert("Failed to update setting.", "error");
+      });
+    }
+
+    function executeTool(toolEndpoint, btn) {
+      hideAlert();
+      const origText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Running...";
+
+      fetch('/api/tools/' + toolEndpoint, { method: 'POST' })
+        .then(r => r.json())
+        .then(res => {
+          btn.disabled = false;
+          btn.textContent = origText;
+          showAlert(res.message || "Action completed.", res.success ? "success" : "error");
+        })
+        .catch(err => {
+          btn.disabled = false;
+          btn.textContent = origText;
+          showAlert("Action execution failed: " + err, "error");
+        });
+    }
+
+    function confirmClearHistory(btn) {
+      if (confirm("Are you sure you want to permanently erase all network traffic history? This cannot be undone.")) {
+        executeTool('clear-history', btn);
+      }
+    }
+
+    // --- Click to Copy IP Helper ---
+    function copyIpText(el) {
+      const text = el.textContent.trim();
+      if (!text || text === "--") return;
+      navigator.clipboard.writeText(text).then(() => {
+        showCopyToast(`Copied ${text} to clipboard!`);
+      }).catch(() => {
+        showCopyToast(`Copied!`);
+      });
+    }
+
+    function showCopyToast(msg) {
+      const toast = document.getElementById('copy-toast');
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      clearTimeout(window._toastTimeout);
+      window._toastTimeout = setTimeout(() => {
+        toast.style.display = 'none';
+      }, 2200);
     }
 
     initEvents();
