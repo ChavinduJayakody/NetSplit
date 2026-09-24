@@ -24,6 +24,7 @@ from typing import Dict, List, Any, Optional
 import psutil
 
 from core.wifi import is_wireless_interface
+from core.platform_utils import run_command_hidden
 
 
 # Comprehensive signature database of known VPN, Proxy, and Tunnel tools
@@ -498,6 +499,27 @@ class VpnDetector:
                         candidate_scores[adapter] = candidate_scores.get(adapter, 0) + 70
                         break
 
+            # Check route print for Windows VPN default route (lower metric or virtual driver)
+            try:
+                res = run_command_hidden(['route', 'print', '0.0.0.0'], timeout=2.0)
+                if res.returncode == 0 and res.stdout:
+                    net_addrs = psutil.net_if_addrs()
+                    for line in res.stdout.splitlines():
+                        parts = line.strip().split()
+                        if len(parts) >= 4 and parts[0] == "0.0.0.0" and parts[1] == "0.0.0.0":
+                            ip = parts[3]
+                            metric = int(parts[4]) if len(parts) >= 5 and parts[4].isdigit() else 999
+                            # VPN default route installed on Windows typically has metric <= 20
+                            if metric <= 20:
+                                for name, addrs in net_addrs.items():
+                                    if name in active_adapters:
+                                        for addr in addrs:
+                                            if addr.address == ip:
+                                                candidate_scores[name] = candidate_scores.get(name, 0) + 85
+                                                break
+            except Exception:
+                pass
+
         # Return candidate with highest score
         if candidate_scores:
             best_iface = max(candidate_scores.items(), key=lambda x: x[1])[0]
@@ -552,14 +574,11 @@ class VpnDetector:
         # 2. Check GNOME System Proxy (Linux)
         if platform.system() != "Windows":
             try:
-                import subprocess
-                res = subprocess.run(['gsettings', 'get', 'org.gnome.system.proxy', 'mode'],
-                                     capture_output=True, text=True, timeout=0.2)
+                res = run_command_hidden(['gsettings', 'get', 'org.gnome.system.proxy', 'mode'], timeout=0.2)
                 mode = res.stdout.strip().replace("'", "")
                 if mode == "manual":
                     # Check SOCKS or HTTP host/port
-                    res_p = subprocess.run(['gsettings', 'get', 'org.gnome.system.proxy.socks', 'port'],
-                                           capture_output=True, text=True, timeout=0.2)
+                    res_p = run_command_hidden(['gsettings', 'get', 'org.gnome.system.proxy.socks', 'port'], timeout=0.2)
                     port_str = res_p.stdout.strip()
                     if port_str.isdigit() and int(port_str) > 0:
                         info.update({

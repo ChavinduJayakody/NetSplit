@@ -219,6 +219,87 @@ class TestUniversalVpnAndProxyDetection(unittest.TestCase):
             self.assertEqual(clients[0]["name"], "NordVPN (NordLynx)")
 
 
+class TestWindowsCompatibility(unittest.TestCase):
+    def test_windows_hidden_kwargs(self):
+        from core.platform_utils import get_windows_hidden_kwargs
+        import unittest.mock as mock
+        import subprocess
+
+        dummy_startupinfo = mock.MagicMock()
+        dummy_startupinfo.dwFlags = 0
+        dummy_startupinfo.wShowWindow = 0
+
+        with mock.patch("platform.system", return_value="Windows"), \
+             mock.patch.object(subprocess, "STARTUPINFO", return_value=dummy_startupinfo, create=True):
+            kwargs = get_windows_hidden_kwargs()
+            self.assertIn("creationflags", kwargs)
+            self.assertEqual(kwargs["creationflags"], 0x08000000)
+            self.assertIn("startupinfo", kwargs)
+            self.assertEqual(kwargs["startupinfo"].wShowWindow, 0)
+
+    def test_ensure_std_streams(self):
+        from core.platform_utils import ensure_std_streams
+        orig_stdout = sys.stdout
+        try:
+            sys.stdout = None
+            ensure_std_streams()
+            self.assertIsNotNone(sys.stdout)
+        finally:
+            if sys.stdout is not None and sys.stdout != orig_stdout:
+                sys.stdout.close()
+            sys.stdout = orig_stdout
+
+    def test_windows_route_print_splits_physical_and_vpn(self):
+        """Verify that on Windows, physical Wi-Fi and VPN TAP adapter are cleanly separated."""
+        from unittest.mock import patch, MagicMock
+        from core.wifi import get_default_gateway_and_iface
+        from core.vpn_detector import VpnDetector
+
+        sample_route_print = (
+            "===========================================================================\n"
+            "Interface List\n"
+            " 15...00 ff 12 34 56 78 ......TAP-Windows Adapter V9\n"
+            " 12...64 bc 58 16 a1 e3 ......Intel(R) Wi-Fi 6 AX201 160MHz\n"
+            "===========================================================================\n"
+            "IPv4 Route Table\n"
+            "===========================================================================\n"
+            "Active Routes:\n"
+            "Network Destination        Netmask          Gateway       Interface  Metric\n"
+            "          0.0.0.0          0.0.0.0         10.8.0.1        10.8.0.2       5\n"
+            "          0.0.0.0          0.0.0.0      192.168.1.1     192.168.1.15     25\n"
+            "===========================================================================\n"
+        )
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.stdout = sample_route_print
+
+        def mock_addrs():
+            addr_vpn = MagicMock()
+            addr_vpn.address = "10.8.0.2"
+            addr_wifi = MagicMock()
+            addr_wifi.address = "192.168.1.15"
+            return {
+                "Ethernet 2": [addr_vpn],
+                "Wi-Fi": [addr_wifi],
+            }
+
+        with patch("platform.system", return_value="Windows"):
+            with patch("core.wifi.run_command_hidden", return_value=mock_proc):
+                with patch("psutil.net_if_addrs", side_effect=mock_addrs):
+                    # 1. Physical gateway must pick Wi-Fi (not the TAP VPN)
+                    iface, gw = get_default_gateway_and_iface(force=True)
+                    self.assertEqual(iface, "Wi-Fi")
+                    self.assertEqual(gw, "192.168.1.1")
+
+        with patch("platform.system", return_value="Windows"):
+            with patch("core.vpn_detector.run_command_hidden", return_value=mock_proc):
+                with patch("psutil.net_if_addrs", side_effect=mock_addrs):
+                    # 2. TUN detection must identify Ethernet 2 (the metric 5 VPN tunnel)
+                    vd = VpnDetector()
+                    vpn_iface = vd.get_tun_interface_name(active_adapters=["Wi-Fi", "Ethernet 2"])
+                    self.assertEqual(vpn_iface, "Ethernet 2")
+
+
 class TestCollector(unittest.TestCase):
     def test_collector_snapshot(self):
         collector = NetworkCollector(sample_interval=0.5)

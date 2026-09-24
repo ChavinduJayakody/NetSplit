@@ -16,6 +16,8 @@ import time
 from typing import Dict, Any, Optional
 import psutil
 
+from core.platform_utils import run_command_hidden
+
 # Cache stores to avoid repetitive subprocess execution
 _gateway_cache: tuple[Optional[str], Optional[str]] = (None, None)
 _gateway_last_check: float = 0.0
@@ -40,7 +42,8 @@ def is_virtual_interface(iface: str) -> bool:
         return True
     for kw in ["tun", "tap", "wg", "wireguard", "sing", "throne", "clash", "ppp",
                "dummy", "docker", "veth", "virbr", "vmnet", "vboxnet", "hyper-v", "wintun",
-               "tailscale", "zerotier"]:
+               "tailscale", "zerotier", "cisco", "anyconnect", "forticlient", "globalprotect",
+               "openvpn", "nord", "proton", "mullvad", "surfshark", "warp", "virtual"]:
         if kw in low:
             return True
 
@@ -86,37 +89,84 @@ def get_default_gateway_and_iface(force: bool = False) -> tuple[Optional[str], O
 
     if platform.system() == "Windows":
         try:
-            res = subprocess.run(['route', 'print', '0.0.0.0'], capture_output=True, text=True, timeout=2)
+            res = run_command_hidden(['route', 'print', '0.0.0.0'], timeout=2.5)
             candidates = []
-            for line in res.stdout.splitlines():
-                parts = line.strip().split()
-                if len(parts) >= 4 and parts[0] == "0.0.0.0" and parts[1] == "0.0.0.0":
-                    gw = parts[2]
-                    ip = parts[3]
-                    for name, addrs in psutil.net_if_addrs().items():
-                        if is_virtual_interface(name):
+            virtual_descs = set()
+            in_iface_list = False
+
+            if res.returncode == 0 and res.stdout:
+                # 1. Parse Interface List to capture adapter driver descriptions
+                for line in res.stdout.splitlines():
+                    sline = line.strip()
+                    if sline.startswith("Interface List"):
+                        in_iface_list = True
+                        continue
+                    if in_iface_list:
+                        if sline.startswith("==="):
+                            in_iface_list = False
                             continue
-                        for addr in addrs:
-                            if addr.address == ip:
-                                candidates.append((name, gw))
-                                break
+                        if "......" in sline:
+                            desc = sline.split("......")[-1].strip().lower()
+                            if any(k in desc for k in ["tap", "wintun", "wireguard", "vpn", "virtual", "tunnel",
+                                                       "tailscale", "zerotier", "cisco", "anyconnect", "fortinet",
+                                                       "palo alto", "hyper-v", "vmware", "virtualbox", "loopback"]):
+                                virtual_descs.add(desc)
+
+                # 2. Parse Active Routes for default gateways
+                net_addrs = psutil.net_if_addrs()
+                for line in res.stdout.splitlines():
+                    parts = line.strip().split()
+                    if len(parts) >= 4 and parts[0] == "0.0.0.0" and parts[1] == "0.0.0.0":
+                        gw = parts[2]
+                        ip = parts[3]
+                        metric = int(parts[4]) if len(parts) >= 5 and parts[4].isdigit() else 999
+                        for name, addrs in net_addrs.items():
+                            is_virt = is_virtual_interface(name) or any(vd in name.lower() for vd in virtual_descs)
+                            for addr in addrs:
+                                if addr.address == ip:
+                                    candidates.append({
+                                        "name": name,
+                                        "gw": gw,
+                                        "metric": metric,
+                                        "is_virtual": is_virt,
+                                        "is_wireless": is_wireless_interface(name)
+                                    })
+                                    break
+
             if candidates:
-                # Prefer Ethernet if both exist, otherwise Wi-Fi
-                candidates.sort(key=lambda c: 0 if not is_wireless_interface(c[0]) else 1)
-                _gateway_cache = candidates[0]
-                _gateway_last_check = now
-                return _gateway_cache
+                # Filter for physical network adapters (exclude virtual VPN tunnels)
+                phys_candidates = [c for c in candidates if not c["is_virtual"]]
+                if not phys_candidates:
+                    # If all detected were virtual, pick highest metric (original gateway has higher metric)
+                    phys_candidates = sorted(candidates, key=lambda c: c["metric"], reverse=True)
+
+                if phys_candidates:
+                    # Sort: prefer Wi-Fi/Ethernet with valid local router gateway (192.168.x / 10.x / 172.x)
+                    def _rank_phys(c):
+                        gw_ip = c["gw"]
+                        is_local_gw = gw_ip.startswith(("192.168.", "10.", "172."))
+                        # Higher metric usually belongs to underlying physical route when VPN connects
+                        return (1 if is_local_gw else 0, 1 if c["is_wireless"] else 0, c["metric"])
+
+                    phys_candidates.sort(key=_rank_phys, reverse=True)
+                    best = phys_candidates[0]
+                    _gateway_cache = (best["name"], best["gw"])
+                    _gateway_last_check = now
+                    return _gateway_cache
         except Exception:
             pass
 
-        # Fallback for Windows
-        for name, stats in psutil.net_if_stats().items():
-            if not is_virtual_interface(name) and stats.isup:
-                _gateway_cache = (name, None)
-                _gateway_last_check = now
-                return _gateway_cache
+        # Fallback for Windows: check psutil stats
+        try:
+            for name, stats in psutil.net_if_stats().items():
+                if not is_virtual_interface(name) and stats.isup:
+                    _gateway_cache = (name, None)
+                    _gateway_last_check = now
+                    return _gateway_cache
+        except Exception:
+            pass
 
-        _gateway_cache = ("Ethernet" if not is_wireless_interface("Ethernet") else "Wi-Fi", None)
+        _gateway_cache = ("Wi-Fi" if is_wireless_interface("Wi-Fi") else "Ethernet", None)
         _gateway_last_check = now
         return _gateway_cache
 
@@ -303,7 +353,7 @@ def _get_wifi_details_windows() -> Dict[str, Any]:
         "security": "N/A",
     }
     try:
-        res = subprocess.run(['netsh', 'wlan', 'show', 'interfaces'], capture_output=True, text=True, timeout=2)
+        res = run_command_hidden(['netsh', 'wlan', 'show', 'interfaces'], timeout=2.0)
         if res.returncode == 0:
             kv = {}
             for line in res.stdout.splitlines():
@@ -312,7 +362,9 @@ def _get_wifi_details_windows() -> Dict[str, Any]:
                     kv[k.strip().lower()] = v.strip()
 
             state = kv.get("state", "").lower()
-            if state == "connected":
+            is_conn = (state == "connected" or "connect" in state or "verbind" in state or
+                       ("ssid" in kv and kv["ssid"] and kv["ssid"] != "N/A"))
+            if is_conn:
                 ssid = kv.get("ssid", "Connected")
                 bssid = kv.get("bssid", "N/A")
                 signal_str = kv.get("signal", "0%").replace("%", "").strip()
@@ -362,9 +414,9 @@ def _get_wifi_details_linux(iface: str) -> Dict[str, Any]:
         "security": "N/A",
     }
     try:
-        res = subprocess.run(
+        res = run_command_hidden(
             ['nmcli', '-t', '-f', 'active,ssid,bssid,signal,bars,rate,chan,security', 'dev', 'wifi'],
-            capture_output=True, text=True, timeout=2
+            timeout=2.0
         )
         if res.returncode == 0:
             for line in res.stdout.strip().split('\n'):

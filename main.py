@@ -11,9 +11,11 @@ import platform
 import time
 
 from core.collector import NetworkCollector
+from core.platform_utils import ensure_std_streams
 
 
 def main():
+    ensure_std_streams()
     parser = argparse.ArgumentParser(
         description="NetworkMonitor - Real-time Network Speed & Throne VPN Traffic Monitor"
     )

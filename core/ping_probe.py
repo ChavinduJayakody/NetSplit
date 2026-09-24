@@ -13,6 +13,7 @@ import platform
 from typing import Dict, Any, Optional
 
 from core.security import validate_host, validate_ip
+from core.platform_utils import run_command_hidden
 
 
 class PingProbe:
@@ -45,10 +46,7 @@ class PingProbe:
             else:
                 cmd = ['ping', '-c', '1', '-W', str(timeout_sec), host]
 
-            res = subprocess.run(
-                cmd,
-                capture_output=True, text=True, timeout=timeout_sec + 0.8
-            )
+            res = run_command_hidden(cmd, timeout=timeout_sec + 0.8)
             if res.returncode == 0:
                 match = re.search(r'time[=<]\s*([\d\.]+)\s*ms', res.stdout, re.IGNORECASE)
                 if match:
