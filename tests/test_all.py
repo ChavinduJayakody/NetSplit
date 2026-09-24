@@ -163,6 +163,62 @@ class TestThroneIntegration(unittest.TestCase):
         self.assertIn("running_tools", summary)
 
 
+class TestUniversalVpnAndProxyDetection(unittest.TestCase):
+    def setUp(self):
+        from core.vpn_detector import VpnDetector
+        self.vd = VpnDetector()
+
+    def test_universal_adapter_auto_detection(self):
+        """Test that diverse VPN/tunnel adapters are detected automatically."""
+        test_adapters = [
+            ("wg0", "WireGuard"),
+            ("tailscale0", "Tailscale"),
+            ("nordlynx", "NordVPN (NordLynx)"),
+            ("proton0", "Proton VPN"),
+            ("cscotun0", "Cisco AnyConnect"),
+            ("tun3", "VPN / Proxy Tunnel"),
+            ("fct_tun", "FortiClient"),
+        ]
+        for iface, expected_name in test_adapters:
+            self.vd._cached_tun = None
+            detected = self.vd.get_tun_interface_name(active_adapters=["wlan0", "eno1", iface])
+            self.assertEqual(detected, iface, f"Expected {iface} to be detected as active TUN")
+            inferred = self.vd._infer_client_name_from_adapter(detected)
+            self.assertEqual(inferred, expected_name)
+
+    def test_universal_client_process_detection(self):
+        """Test that various VPN client processes are detected from the process table."""
+        from unittest.mock import MagicMock, patch
+
+        mock_procs = [
+            {"name": "tailscaled", "cmdline": ["/usr/bin/tailscaled"]},
+            {"name": "warp-svc", "cmdline": ["/usr/bin/warp-svc"]},
+            {"name": "wireguard-go", "cmdline": ["wireguard-go", "wg0"]},
+            {"name": "custom-vpn-client", "cmdline": ["/opt/custom-vpn-client"]},
+        ]
+        proc_objects = []
+        for p in mock_procs:
+            m = MagicMock()
+            m.info = p
+            proc_objects.append(m)
+
+        with patch("psutil.process_iter", return_value=proc_objects):
+            clients = self.vd.get_running_clients(force=True)
+            client_names = [c["name"] for c in clients]
+            self.assertIn("Tailscale", client_names)
+            self.assertIn("Cloudflare WARP", client_names)
+            self.assertIn("WireGuard", client_names)
+            self.assertIn("custom-vpn-client", client_names)
+
+    def test_synthesized_client_when_tun_is_active(self):
+        """When an adapter is active but no process is found, synthesize client name from adapter."""
+        from unittest.mock import patch
+        with patch("psutil.process_iter", return_value=[]):
+            clients = self.vd.get_running_clients(force=True, tun_iface="nordlynx")
+            self.assertEqual(len(clients), 1)
+            self.assertEqual(clients[0]["name"], "NordVPN (NordLynx)")
+
+
 class TestCollector(unittest.TestCase):
     def test_collector_snapshot(self):
         collector = NetworkCollector(sample_interval=0.5)

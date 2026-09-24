@@ -410,19 +410,19 @@
         </div>
       </div>
 
-      <!-- Throne VPN & Top Apps Card -->
+      <!-- Universal VPN & Top Apps Card -->
       <div class="card">
         <div class="card-header">
-          <span class="card-title">Throne VPN & App Breakdown</span>
+          <span class="card-title">VPN &amp; Proxy Breakdown</span>
           <span>🔒</span>
         </div>
         <div class="info-list" style="margin-bottom: 14px;">
           <div class="info-row">
-            <span class="label">Throne State</span>
+            <span class="label">Connection State</span>
             <span class="val" id="throne-state-text">Disconnected</span>
           </div>
           <div class="info-row">
-            <span class="label">Active Profile</span>
+            <span class="label">Active Profile / Client</span>
             <span class="val" id="throne-profile">None</span>
           </div>
           <div class="info-row">
@@ -432,13 +432,13 @@
         </div>
 
         <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 8px;">
-          TOP APPS VIA VPN (THORNE STATS)
+          APPLICATIONS ROUTED VIA VPN / PROXY
         </div>
         <table class="app-table">
           <thead>
             <tr>
               <th>Application</th>
-              <th style="text-align: right;">Total Transferred</th>
+              <th style="text-align: right;">Total / Conns</th>
             </tr>
           </thead>
           <tbody id="app-table-body">
@@ -633,12 +633,15 @@
 
       const tableBody = document.getElementById('app-table-body');
       if (throne.top_apps && throne.top_apps.length > 0) {
-        tableBody.innerHTML = throne.top_apps.map(app => `
-          <tr>
-            <td style="color: #e6edf3; font-weight: 500;">${app.process}</td>
-            <td style="text-align: right; color: var(--accent-vpn); font-weight: 600;">${formatBytes(app.total_bytes)}</td>
-          </tr>
-        `).join('');
+        tableBody.innerHTML = throne.top_apps.map(app => {
+          const valStr = app.is_connections ? `${app.total_bytes} conns` : formatBytes(app.total_bytes);
+          return `
+            <tr>
+              <td style="color: #e6edf3; font-weight: 500;">${app.process}</td>
+              <td style="text-align: right; color: var(--accent-vpn); font-weight: 600;">${valStr}</td>
+            </tr>
+          `;
+        }).join('');
       } else {
         tableBody.innerHTML = '<tr><td colspan="2" style="color: var(--text-muted);">No app data yet</td></tr>';
       }

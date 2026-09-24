@@ -717,8 +717,8 @@ class MainWindow(Adw.ApplicationWindow):
             description="Multi-protocol client detection and exclusive accounting rules"
         )
 
-        support_row = Adw.ActionRow(title="Supported Clients")
-        support_row.set_subtitle("Throne • NetMod • Netch • NekoRay • v2rayA • Clash • Sing-Box • Xray • WireGuard • OpenVPN")
+        support_row = Adw.ActionRow(title="Universal VPN / Proxy Detection")
+        support_row.set_subtitle("Auto-detects any VPN, Proxy, Tunnel, WireGuard, OpenVPN, Tailscale, Clash, Sing-Box, or Commercial VPN")
         proxy_settings_group.add(support_row)
 
         self.exclusive_row = Adw.SwitchRow(title="Exclusive Accounting Mode")
@@ -1086,10 +1086,16 @@ class MainWindow(Adw.ApplicationWindow):
             else:
                 for app in top_apps:
                     row = Adw.ActionRow(title=app["process"])
-                    total_formatted = format_bytes(app["total_bytes"])
-                    sub_formatted = f"↓ {format_bytes(app['down_bytes'])}   ↑ {format_bytes(app['up_bytes'])}"
-                    row.set_subtitle(sub_formatted)
-                    lbl = Gtk.Label(label=total_formatted, halign=Gtk.Align.END)
+                    if app.get("is_connections"):
+                        conns = app["total_bytes"]
+                        conn_text = f"{conns} active connection" if conns == 1 else f"{conns} active connections"
+                        row.set_subtitle(conn_text)
+                        lbl = Gtk.Label(label=f"{conns} conns", halign=Gtk.Align.END)
+                    else:
+                        total_formatted = format_bytes(app["total_bytes"])
+                        sub_formatted = f"↓ {format_bytes(app['down_bytes'])}   ↑ {format_bytes(app['up_bytes'])}"
+                        row.set_subtitle(sub_formatted)
+                        lbl = Gtk.Label(label=total_formatted, halign=Gtk.Align.END)
                     lbl.add_css_class("info-val")
                     row.add_suffix(lbl)
                     self.app_group.add(row)
