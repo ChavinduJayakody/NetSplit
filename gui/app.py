@@ -230,14 +230,38 @@ class MainWindow(Adw.ApplicationWindow):
         self.vpn_badge.add_css_class("badge-vpn-inactive")
         header.pack_end(self.vpn_badge)
 
-        # Primary menu (Quit option)
+        # Actions for primary menu on top
+        action_troubleshoot = Gio.SimpleAction.new("troubleshoot", None)
+        action_troubleshoot.connect("activate", self._on_menu_troubleshoot)
+        self.add_action(action_troubleshoot)
+
+        action_settings = Gio.SimpleAction.new("preferences", None)
+        action_settings.connect("activate", self._on_menu_settings)
+        self.add_action(action_settings)
+
+        # Primary Options Menu on top
         menu = Gio.Menu()
-        menu.append("Quit NetSplit", "app.quit")
+        menu.append("🛠️ Troubleshoot Network...", "win.troubleshoot")
+        menu.append("⚙️ Preferences & Settings", "win.preferences")
+
+        section_exit = Gio.Menu()
+        section_exit.append("Quit NetSplit", "app.quit")
+        menu.append_section(None, section_exit)
+
         menu_btn = Gtk.MenuButton()
         menu_btn.set_icon_name("open-menu-symbolic")
         menu_btn.set_menu_model(menu)
-        menu_btn.set_tooltip_text("Main Menu")
+        menu_btn.set_tooltip_text("Options Menu")
         header.pack_end(menu_btn)
+
+        # Quick Troubleshoot Header Button
+        btn_quick_trouble = Gtk.Button()
+        btn_quick_trouble.set_label("Troubleshoot")
+        btn_quick_trouble.set_tooltip_text("Open Network Diagnostics & Repair")
+        btn_quick_trouble.add_css_class("flat")
+        btn_quick_trouble.set_valign(Gtk.Align.CENTER)
+        btn_quick_trouble.connect("clicked", self._on_menu_troubleshoot)
+        header.pack_end(btn_quick_trouble)
 
         main_box.append(header)
 
@@ -900,6 +924,14 @@ class MainWindow(Adw.ApplicationWindow):
         res = renew_dhcp()
         btn.set_label("Renewed ✓" if res.get("success") else "Failed")
         GLib.timeout_add(2500, lambda: (btn.set_label("Renew Network"), btn.set_sensitive(True)))
+
+    def _on_menu_troubleshoot(self, *args):
+        self.view_stack.set_visible_child_name("settings")
+        if hasattr(self, "btn_flush_dns"):
+            self.btn_flush_dns.grab_focus()
+
+    def _on_menu_settings(self, *args):
+        self.view_stack.set_visible_child_name("settings")
 
     # --- Cairo Waveform Drawing ---
     def _draw_speed_graph(self, area, cr, width, height):

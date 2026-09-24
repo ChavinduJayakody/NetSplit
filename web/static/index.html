@@ -272,8 +272,8 @@
       transition: width 0.4s ease;
     }
 
-    /* Settings Button in Header */
-    .btn-settings {
+    /* Header Buttons & Dropdown */
+    .btn-settings, .btn-troubleshoot, .btn-options {
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -281,17 +281,160 @@
       border-radius: 9999px;
       font-size: 0.82rem;
       font-weight: 600;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid var(--border-subtle);
-      color: var(--text-main);
       cursor: pointer;
       backdrop-filter: blur(8px);
       transition: all 0.2s;
+    }
+    .btn-settings {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
     }
     .btn-settings:hover {
       background: rgba(255, 255, 255, 0.16);
       border-color: rgba(255, 255, 255, 0.3);
       transform: translateY(-1px);
+    }
+    .btn-troubleshoot {
+      background: rgba(56, 189, 248, 0.16);
+      border: 1px solid rgba(56, 189, 248, 0.45);
+      color: var(--accent-direct);
+    }
+    .btn-troubleshoot:hover {
+      background: rgba(56, 189, 248, 0.28);
+      border-color: rgba(56, 189, 248, 0.7);
+      transform: translateY(-1px);
+      box-shadow: 0 2px 10px rgba(56, 189, 248, 0.25);
+    }
+    .btn-options {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+    }
+    .btn-options:hover {
+      background: rgba(255, 255, 255, 0.16);
+      border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
+
+    /* Options Dropdown Menu */
+    .dropdown-wrapper {
+      position: relative;
+      display: inline-block;
+    }
+    .dropdown-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: #161b22;
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
+      min-width: 250px;
+      padding: 6px;
+      z-index: 1001;
+      animation: fadeIn 0.15s ease-out;
+    }
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .dropdown-item:hover {
+      background: rgba(255, 255, 255, 0.08);
+    }
+    .dropdown-icon {
+      font-size: 1.15rem;
+      flex-shrink: 0;
+    }
+    .item-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-main);
+      line-height: 1.2;
+    }
+    .item-desc {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .dropdown-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.06);
+      margin: 4px 6px;
+    }
+
+    /* Modal Navigation Tabs */
+    .modal-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 10px 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(0, 0, 0, 0.2);
+      overflow-x: auto;
+    }
+    .modal-tab-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 0.84rem;
+      font-weight: 600;
+      padding: 8px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .modal-tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.06);
+    }
+    .modal-tab-btn.active {
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+    }
+
+    /* Diagnostics Health Grid */
+    .diag-health-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+    @media (max-width: 600px) {
+      .diag-health-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .diag-health-card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 12px;
+      padding: 12px 14px;
+    }
+    .diag-health-title {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+    }
+    .diag-health-val {
+      font-size: 0.95rem;
+      font-weight: 700;
+      margin-top: 4px;
+      color: var(--text-main);
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .diag-health-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 2px;
     }
 
     /* Modal Backdrop & Content */
@@ -559,9 +702,41 @@
           <span class="dot"></span>
           <span id="vpn-status-badge">VPN Disconnected</span>
         </div>
-        <button id="btn-settings-open" class="btn-settings" onclick="openSettings()" title="Settings &amp; Network Tools">
-          ⚙️ Settings &amp; Tools
+        <!-- Troubleshoot Header Quick Button -->
+        <button id="btn-troubleshoot-open" class="badge btn-troubleshoot" onclick="openTroubleshoot()" title="Run Network Diagnostics &amp; 1-Click Fixes">
+          🛠️ Troubleshoot
         </button>
+
+        <!-- Options Menu Dropdown -->
+        <div class="dropdown-wrapper">
+          <button id="btn-options-open" class="badge btn-options" onclick="toggleOptionsMenu(event)" title="Options Menu">
+            ☰ Options ▾
+          </button>
+          <div id="options-menu" class="dropdown-menu" style="display: none;">
+            <div class="dropdown-item" onclick="openTroubleshoot()">
+              <span class="dropdown-icon">🛠️</span>
+              <div>
+                <div class="item-title">Troubleshoot Network...</div>
+                <div class="item-desc">Flush DNS, reset proxy, renew DHCP</div>
+              </div>
+            </div>
+            <div class="dropdown-item" onclick="openSettings('preferences')">
+              <span class="dropdown-icon">⚙️</span>
+              <div>
+                <div class="item-title">Preferences &amp; Settings</div>
+                <div class="item-desc">Privacy mode, autostart, rules</div>
+              </div>
+            </div>
+            <div class="dropdown-divider"></div>
+            <div class="dropdown-item" onclick="openSettings('data')">
+              <span class="dropdown-icon">📊</span>
+              <div>
+                <div class="item-title">Data Maintenance</div>
+                <div class="item-desc">Reset today's usage or clear history</div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -723,112 +898,176 @@
     <div class="modal-content">
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 12px;">
-          <span style="font-size: 1.5rem;">⚙️</span>
+          <span id="modal-header-icon" style="font-size: 1.5rem;">🛠️</span>
           <div>
-            <h2 style="font-size: 1.25rem; font-weight: 700; line-height: 1.2;">Settings &amp; Network Tools</h2>
-            <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Preferences and 1-click diagnostic repair actions</p>
+            <h2 id="modal-header-title" style="font-size: 1.25rem; font-weight: 700; line-height: 1.2;">Network Diagnostics &amp; Settings</h2>
+            <p id="modal-header-subtitle" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Real-time network health diagnostics and 1-click repairs</p>
           </div>
         </div>
         <button id="btn-settings-close" class="modal-close-btn" onclick="closeSettings()">&times;</button>
+      </div>
+
+      <!-- Modern Navigation Tabs inside Modal -->
+      <div class="modal-tabs">
+        <button id="tab-btn-troubleshoot" class="modal-tab-btn active" onclick="switchModalTab('troubleshoot')">
+          🛠️ Troubleshoot &amp; Health
+        </button>
+        <button id="tab-btn-preferences" class="modal-tab-btn" onclick="switchModalTab('preferences')">
+          ⚙️ Preferences
+        </button>
+        <button id="tab-btn-data" class="modal-tab-btn" onclick="switchModalTab('data')">
+          📊 Data Maintenance
+        </button>
+        <button id="tab-btn-about" class="modal-tab-btn" onclick="switchModalTab('about')">
+          ℹ️ About
+        </button>
       </div>
 
       <div class="modal-body">
         <!-- Toast / Status Alert Inside Modal -->
         <div id="tool-alert" class="tool-alert" style="display: none;"></div>
 
-        <!-- Section 1: Network Diagnostic & Repair Tools -->
-        <div class="settings-group">
-          <div class="settings-group-title">🛠️ Network Diagnostic &amp; Repair Tools</div>
+        <!-- TAB 1: Troubleshoot & Diagnostics -->
+        <div id="tab-content-troubleshoot" class="modal-tab-content">
+          <!-- Real-Time Diagnostics Health Dashboard -->
+          <div class="diag-health-grid">
+            <div class="diag-health-card">
+              <div class="diag-health-title">Router Gateway Link</div>
+              <div id="diag-gw-status" class="diag-health-val" style="color: var(--accent-total);">Online</div>
+              <div id="diag-gw-sub" class="diag-health-sub">Ping: --</div>
+            </div>
+            <div class="diag-health-card">
+              <div class="diag-health-title">Internet &amp; DNS Health</div>
+              <div id="diag-dns-status" class="diag-health-val" style="color: var(--accent-total);">Resolving</div>
+              <div id="diag-dns-sub" class="diag-health-sub">DNS: 1.1.1.1</div>
+            </div>
+            <div class="diag-health-card">
+              <div class="diag-health-title">System Proxy State</div>
+              <div id="diag-proxy-status" class="diag-health-val">Direct (Clean)</div>
+              <div id="diag-proxy-sub" class="diag-health-sub">No dead proxy redirect</div>
+            </div>
+            <div class="diag-health-card">
+              <div class="diag-health-title">Tunnel / VPN Routing</div>
+              <div id="diag-vpn-status" class="diag-health-val">Direct Wi-Fi</div>
+              <div id="diag-vpn-sub" class="diag-health-sub">Physical adapter active</div>
+            </div>
+          </div>
+
+          <div class="settings-group-title" style="margin-top: 10px; margin-bottom: 10px;">
+            🛠️ 1-Click Diagnostic Repair Utilities
+          </div>
           <div class="tools-grid">
             <div class="tool-card">
               <div class="tool-info">
-                <strong>Flush DNS Cache</strong>
-                <p>Clears OS resolver cache. Fixes DNS resolution failures after VPN/proxy use.</p>
+                <strong>Flush DNS Resolver Cache</strong>
+                <p>Invalidates cached DNS hostnames. Fixes website unreachable errors after VPN/proxy use.</p>
               </div>
               <button class="btn-action" onclick="executeTool('flush-dns', this)">Flush DNS</button>
             </div>
 
             <div class="tool-card">
               <div class="tool-info">
-                <strong>Reset System Proxy</strong>
-                <p>Clears dead localhost proxy redirects left by crashed VPN/proxy clients.</p>
+                <strong>Reset Lingering System Proxy</strong>
+                <p>Clears dead localhost proxy redirects left by crashed VPN/proxy clients (Throne, Clash, v2ray).</p>
               </div>
               <button class="btn-action" onclick="executeTool('reset-proxy', this)">Reset Proxy</button>
             </div>
 
             <div class="tool-card">
               <div class="tool-info">
-                <strong>Renew Network (DHCP)</strong>
-                <p>Renews IP lease and re-synchronizes the network adapter connection.</p>
+                <strong>Renew Network Connection (DHCP)</strong>
+                <p>Renews IP lease and re-synchronizes adapter connection and default gateway routes.</p>
               </div>
               <button class="btn-action" onclick="executeTool('renew-dhcp', this)">Renew DHCP</button>
             </div>
           </div>
         </div>
 
-        <!-- Section 2: Privacy & Accounting Preferences -->
-        <div class="settings-group">
-          <div class="settings-group-title">🛡️ Privacy &amp; Accounting Preferences</div>
-          
-          <div class="setting-row">
-            <div class="setting-info">
-              <strong>Mask IP Addresses (Privacy Mode)</strong>
-              <p>Hides public and local IP addresses across dashboard views.</p>
+        <!-- TAB 2: Privacy & Accounting Preferences -->
+        <div id="tab-content-preferences" class="modal-tab-content" style="display: none;">
+          <div class="settings-group" style="border-bottom: none; padding-bottom: 0;">
+            <div class="settings-group-title">🛡️ Privacy &amp; Split Accounting Preferences</div>
+            
+            <div class="setting-row">
+              <div class="setting-info">
+                <strong>Mask IP Addresses (Privacy Mode)</strong>
+                <p>Hides public and local IP addresses across dashboard views.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setting-mask-ips" onchange="updateSetting('mask_ips', this.checked)">
+                <span class="slider"></span>
+              </label>
             </div>
-            <label class="switch">
-              <input type="checkbox" id="setting-mask-ips" onchange="updateSetting('mask_ips', this.checked)">
-              <span class="slider"></span>
-            </label>
-          </div>
 
-          <div class="setting-row">
-            <div class="setting-info">
-              <strong>Exclusive Accounting Mode</strong>
-              <p>When VPN is active, direct traffic reads 0 B/s and counts 100% as VPN.</p>
+            <div class="setting-row">
+              <div class="setting-info">
+                <strong>Exclusive Accounting Mode</strong>
+                <p>When VPN is active, direct traffic reads 0 B/s and counts 100% as VPN.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setting-exclusive" onchange="updateSetting('exclusive_mode', this.checked)">
+                <span class="slider"></span>
+              </label>
             </div>
-            <label class="switch">
-              <input type="checkbox" id="setting-exclusive" onchange="updateSetting('exclusive_mode', this.checked)">
-              <span class="slider"></span>
-            </label>
-          </div>
 
-          <div class="setting-row" id="row-autostart">
-            <div class="setting-info">
-              <strong>Launch on System Startup</strong>
-              <p>Starts NetSplit silently on user login.</p>
+            <div class="setting-row" id="row-autostart">
+              <div class="setting-info">
+                <strong>Launch on System Startup</strong>
+                <p>Starts NetSplit silently on user login.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setting-autostart" onchange="updateSetting('autostart', this.checked)">
+                <span class="slider"></span>
+              </label>
             </div>
-            <label class="switch">
-              <input type="checkbox" id="setting-autostart" onchange="updateSetting('autostart', this.checked)">
-              <span class="slider"></span>
-            </label>
-          </div>
 
-          <div class="setting-row">
-            <div class="setting-info">
-              <strong>Minimize to Tray on Close</strong>
-              <p>Keep running in background notification tray when closing window.</p>
+            <div class="setting-row">
+              <div class="setting-info">
+                <strong>Minimize to Tray on Close</strong>
+                <p>Keep running in background notification tray when closing window.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="setting-min-tray" onchange="updateSetting('minimize_to_tray', this.checked)">
+                <span class="slider"></span>
+              </label>
             </div>
-            <label class="switch">
-              <input type="checkbox" id="setting-min-tray" onchange="updateSetting('minimize_to_tray', this.checked)">
-              <span class="slider"></span>
-            </label>
           </div>
         </div>
 
-        <!-- Section 3: Data Maintenance -->
-        <div class="settings-group">
-          <div class="settings-group-title">📊 Data &amp; History Maintenance</div>
-          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-            <button class="btn-secondary" onclick="executeTool('reset-today', this)">Reset Today's Stats</button>
-            <button class="btn-danger" onclick="confirmClearHistory(this)">Clear All History</button>
+        <!-- TAB 3: Data Maintenance -->
+        <div id="tab-content-data" class="modal-tab-content" style="display: none;">
+          <div class="settings-group" style="border-bottom: none; padding-bottom: 0;">
+            <div class="settings-group-title">📊 Data &amp; History Maintenance</div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">Manage local SQLite accounting records and reset counters.</p>
+            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+              <button class="btn-secondary" onclick="executeTool('reset-today', this)">Reset Today's Stats</button>
+              <button class="btn-danger" onclick="confirmClearHistory(this)">Clear All History</button>
+            </div>
           </div>
         </div>
 
-        <!-- Section 4: About NetSplit -->
-        <div class="settings-group" style="border-bottom: none; padding-bottom: 0;">
-          <div style="display: flex; justify-content: space-between; align-items: center; color: var(--text-muted); font-size: 0.85rem;">
-            <span>NetSplit <strong id="about-version" style="color: var(--text-main);">v1.4.0</strong></span>
-            <span>Cross-Platform Network &amp; VPN Traffic Monitor</span>
+        <!-- TAB 4: About NetSplit -->
+        <div id="tab-content-about" class="modal-tab-content" style="display: none;">
+          <div class="settings-group" style="border-bottom: none; padding-bottom: 0;">
+            <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 14px;">
+              <img src="/static/netsplit.svg" width="48" height="48" style="border-radius: 12px; box-shadow: 0 4px 14px rgba(56, 189, 248, 0.35);" alt="NetSplit" />
+              <div>
+                <h3 style="font-size: 1.15rem; font-weight: 700;">NetSplit</h3>
+                <p style="font-size: 0.82rem; color: var(--text-muted);">Real-Time Network Speed &amp; VPN / Proxy Split Accounting</p>
+              </div>
+            </div>
+            <div class="info-row">
+              <span class="label">Version</span>
+              <span class="val" id="about-version">v1.4.0</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Operating System</span>
+              <span class="val" id="about-os">Detected dynamically</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Source Code</span>
+              <span class="val"><a href="https://github.com/ChavinduJayakody/NetSplit" target="_blank" style="color: #38bdf8; text-decoration: none;">GitHub Repository ↗</a></span>
+            </div>
           </div>
         </div>
       </div>
@@ -1064,6 +1303,61 @@
       speedChart.data.datasets[2].data.push(totMB);
 
       speedChart.update('none');
+
+      // Update Real-Time Diagnostics Health Cards inside Modal
+      const diagGwStatus = document.getElementById('diag-gw-status');
+      const diagGwSub = document.getElementById('diag-gw-sub');
+      if (diagGwStatus) {
+        if (ping.gateway_ping_ms !== null) {
+          diagGwStatus.textContent = "Online (" + ping.gateway_ping_ms.toFixed(1) + " ms)";
+          diagGwStatus.style.color = "var(--accent-total)";
+        } else {
+          diagGwStatus.textContent = "Unreachable";
+          diagGwStatus.style.color = "var(--accent-danger)";
+        }
+        if (diagGwSub) diagGwSub.textContent = "Router: " + (wifi.gateway_ip || (wifi.connected ? "Reachable" : "Disconnected"));
+      }
+
+      const diagDnsStatus = document.getElementById('diag-dns-status');
+      const diagDnsSub = document.getElementById('diag-dns-sub');
+      if (diagDnsStatus) {
+        if (ping.internet_ping_ms !== null) {
+          diagDnsStatus.textContent = "Resolving (" + ping.internet_ping_ms.toFixed(1) + " ms)";
+          diagDnsStatus.style.color = "var(--accent-total)";
+        } else {
+          diagDnsStatus.textContent = "Resolution Timeout";
+          diagDnsStatus.style.color = "var(--accent-danger)";
+        }
+        if (diagDnsSub) diagDnsSub.textContent = "Public IP: " + (ping.public_ip || "--");
+      }
+
+      const diagProxyStatus = document.getElementById('diag-proxy-status');
+      const diagProxySub = document.getElementById('diag-proxy-sub');
+      if (diagProxyStatus) {
+        if (throne.client_running) {
+          diagProxyStatus.textContent = "Client Active (" + (throne.active_profile || "Running") + ")";
+          diagProxyStatus.style.color = "var(--accent-vpn)";
+          if (diagProxySub) diagProxySub.textContent = "Proxy engine connected";
+        } else {
+          diagProxyStatus.textContent = "Direct (Clean)";
+          diagProxyStatus.style.color = "var(--accent-direct)";
+          if (diagProxySub) diagProxySub.textContent = "No dead proxy redirect";
+        }
+      }
+
+      const diagVpnStatus = document.getElementById('diag-vpn-status');
+      const diagVpnSub = document.getElementById('diag-vpn-sub');
+      if (diagVpnStatus) {
+        if (throne.tun_active) {
+          diagVpnStatus.textContent = "Tunnel Active (" + throne.tun_interface + ")";
+          diagVpnStatus.style.color = "var(--accent-vpn)";
+          if (diagVpnSub) diagVpnSub.textContent = "Routing via encrypted tunnel";
+        } else {
+          diagVpnStatus.textContent = isLan ? "Direct LAN" : "Direct Wi-Fi";
+          diagVpnStatus.style.color = "var(--accent-total)";
+          if (diagVpnSub) diagVpnSub.textContent = "Physical adapter active";
+        }
+      }
     }
 
     // Connect to SSE stream
@@ -1091,16 +1385,79 @@
         .catch(console.error);
     }
 
-    // --- Settings & Tools Dialog Logic ---
-    function openSettings() {
+    // --- Options Menu & Modal Navigation Logic ---
+    function openTroubleshoot() {
+      closeOptionsMenu();
+      openSettings('troubleshoot');
+    }
+
+    function openSettings(activeTab = 'preferences') {
+      closeOptionsMenu();
       document.getElementById('modal-settings').style.display = 'flex';
+      switchModalTab(activeTab);
       hideAlert();
       fetchSettings();
     }
 
     function closeSettings() {
       document.getElementById('modal-settings').style.display = 'none';
+      closeOptionsMenu();
     }
+
+    function switchModalTab(tabKey) {
+      const tabs = ['troubleshoot', 'preferences', 'data', 'about'];
+      tabs.forEach(t => {
+        const btn = document.getElementById('tab-btn-' + t);
+        const content = document.getElementById('tab-content-' + t);
+        if (btn) btn.classList.toggle('active', t === tabKey);
+        if (content) content.style.display = (t === tabKey) ? 'block' : 'none';
+      });
+
+      const icon = document.getElementById('modal-header-icon');
+      const title = document.getElementById('modal-header-title');
+      const subtitle = document.getElementById('modal-header-subtitle');
+      if (tabKey === 'troubleshoot') {
+        if (icon) icon.textContent = '🛠️';
+        if (title) title.textContent = 'Network Troubleshooting & Diagnostics';
+        if (subtitle) subtitle.textContent = 'Live health diagnostics and 1-click network repair actions';
+      } else if (tabKey === 'preferences') {
+        if (icon) icon.textContent = '⚙️';
+        if (title) title.textContent = 'Preferences & Settings';
+        if (subtitle) subtitle.textContent = 'Configure privacy, launch options, and accounting behavior';
+      } else if (tabKey === 'data') {
+        if (icon) icon.textContent = '📊';
+        if (title) title.textContent = 'Data & History Maintenance';
+        if (subtitle) subtitle.textContent = 'Reset session accumulators or clear SQLite records';
+      } else if (tabKey === 'about') {
+        if (icon) icon.textContent = 'ℹ️';
+        if (title) title.textContent = 'About NetSplit';
+        if (subtitle) subtitle.textContent = 'Cross-platform traffic accounting application';
+      }
+    }
+
+    function toggleOptionsMenu(e) {
+      if (e) e.stopPropagation();
+      const menu = document.getElementById('options-menu');
+      if (menu) {
+        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+      }
+    }
+
+    function closeOptionsMenu() {
+      const menu = document.getElementById('options-menu');
+      if (menu) menu.style.display = 'none';
+    }
+
+    // Global click listener to close options dropdown
+    window.addEventListener('click', function(e) {
+      const dropdown = document.getElementById('options-menu');
+      const btn = document.getElementById('btn-options-open');
+      if (dropdown && dropdown.style.display === 'block') {
+        if (!dropdown.contains(e.target) && e.target !== btn) {
+          dropdown.style.display = 'none';
+        }
+      }
+    });
 
     // Close on backdrop click or ESC key
     window.addEventListener('click', function(e) {
