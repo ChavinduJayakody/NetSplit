@@ -406,6 +406,35 @@ class TestNetworkToolsAndApi(unittest.TestCase):
             tool_resp = urllib.request.urlopen(tool_req, timeout=2)
             self.assertEqual(tool_resp.status, 200)
             mock_collector.reset_today.assert_called_once()
+
+            # 4. GET /api/benchmark/status
+            bm_status_req = urllib.request.urlopen("http://127.0.0.1:18765/api/benchmark/status", timeout=2)
+            self.assertEqual(bm_status_req.status, 200)
+            bm_data = json.loads(bm_status_req.read().decode())
+            self.assertIn("status", bm_data)
+            self.assertIn("stage", bm_data)
+            self.assertIn("download_speed_mbps", bm_data)
+
+            # 5. POST /api/benchmark/start (mocking start_async)
+            with unittest.mock.patch.object(server.RequestHandlerClass.benchmark, "start_async") as mock_start:
+                server.RequestHandlerClass.benchmark.is_running = False
+                bm_start_req = urllib.request.Request("http://127.0.0.1:18765/api/benchmark/start", data=b"{}", headers={"Content-Type": "application/json"})
+                bm_start_resp = urllib.request.urlopen(bm_start_req, timeout=2)
+                self.assertEqual(bm_start_resp.status, 200)
+                bm_res = json.loads(bm_start_resp.read().decode())
+                self.assertTrue(bm_res["success"])
+                mock_start.assert_called_once()
+
+            # 6. GET / (Index HTML verification for Windows/Web features)
+            idx_req = urllib.request.urlopen("http://127.0.0.1:18765/", timeout=2)
+            self.assertEqual(idx_req.status, 200)
+            html_content = idx_req.read().decode()
+            self.assertIn("nav-speed", html_content)
+            self.assertIn("nav-apps", html_content)
+            self.assertIn("tile-privacy", html_content)
+            self.assertIn("tile-dns", html_content)
+            self.assertIn("proc-telemetry-body", html_content)
+            self.assertIn("btn-start-bench", html_content)
         finally:
             server.shutdown()
             server.server_close()

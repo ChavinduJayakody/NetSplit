@@ -3,18 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NetSplit | Wi-Fi &amp; VPN Traffic Monitor</title>
+  <title>NetSplit | Traffic &amp; VPN Monitor</title>
   <link rel="icon" type="image/svg+xml" href="/static/netsplit.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
     :root {
       --bg-primary: #0d1117;
-      --bg-card: rgba(22, 27, 34, 0.75);
-      --bg-card-hover: rgba(30, 36, 46, 0.9);
-      --border-subtle: rgba(48, 54, 61, 0.8);
+      --bg-card: rgba(22, 27, 34, 0.78);
+      --bg-card-hover: rgba(30, 36, 46, 0.92);
+      --bg-card-active: rgba(38, 46, 58, 0.95);
+      --border-subtle: rgba(48, 54, 61, 0.75);
+      --border-focus: rgba(56, 189, 248, 0.45);
       --text-main: #f0f6fc;
       --text-muted: #8b949e;
       --accent-direct: #38bdf8; /* Sky Blue */
@@ -32,15 +34,15 @@
 
     body {
       font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: radial-gradient(circle at 10% 10%, #161b22 0%, #0d1117 90%);
+      background: radial-gradient(circle at 10% 8%, #161b22 0%, #0d1117 92%);
       color: var(--text-main);
       min-height: 100vh;
-      padding: 24px;
+      padding: 20px 24px;
       line-height: 1.5;
     }
 
     .container {
-      max-width: 1280px;
+      max-width: 1200px;
       margin: 0 auto;
     }
 
@@ -51,13 +53,19 @@
       align-items: center;
       flex-wrap: wrap;
       gap: 16px;
-      margin-bottom: 24px;
-      padding-bottom: 16px;
+      margin-bottom: 18px;
+      padding-bottom: 14px;
       border-bottom: 1px solid var(--border-subtle);
     }
 
-    .title-group h1 {
-      font-size: 1.6rem;
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-group h1 {
+      font-size: 1.45rem;
       font-weight: 800;
       letter-spacing: -0.02em;
       display: flex;
@@ -65,37 +73,79 @@
       gap: 10px;
     }
 
-    .title-group p {
+    /* Tab Switcher Navigation Bar */
+    .tab-nav {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(13, 17, 23, 0.7);
+      border: 1px solid var(--border-subtle);
+      padding: 4px;
+      border-radius: 12px;
+      backdrop-filter: blur(10px);
+    }
+
+    .tab-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 8px 14px;
+      border-radius: 9px;
+      font-size: 0.84rem;
+      font-weight: 600;
       color: var(--text-muted);
-      font-size: 0.9rem;
+      background: transparent;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.16s ease;
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .tab-btn.active {
+      color: #38bdf8;
+      background: rgba(56, 189, 248, 0.14);
+      border-color: rgba(56, 189, 248, 0.35);
+      box-shadow: 0 2px 8px rgba(56, 189, 248, 0.12);
+    }
+
+    .tab-icon {
+      width: 16px;
+      height: 16px;
+      fill: currentColor;
+      flex-shrink: 0;
     }
 
     .header-badges {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
 
     .badge {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 6px 14px;
+      padding: 6px 12px;
       border-radius: 9999px;
-      font-size: 0.82rem;
+      font-size: 0.8rem;
       font-weight: 600;
       border: 1px solid transparent;
       backdrop-filter: blur(8px);
     }
 
     .badge-vpn-active {
-      background: rgba(38, 162, 105, 0.2);
+      background: rgba(74, 222, 128, 0.15);
       border-color: rgba(74, 222, 128, 0.4);
       color: var(--accent-total);
     }
 
     .badge-vpn-inactive {
-      background: rgba(139, 148, 158, 0.15);
+      background: rgba(139, 148, 158, 0.12);
       border-color: var(--border-subtle);
       color: var(--text-muted);
     }
@@ -107,20 +157,29 @@
       background: currentColor;
     }
 
-    /* Main Grid Layout */
-    .grid-dashboard {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      margin-bottom: 20px;
+    .btn-hud {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-hud:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.25);
     }
 
-    @media (max-width: 960px) {
-      .grid-dashboard {
-        grid-template-columns: 1fr;
-      }
+    /* Views Container */
+    .view-panel {
+      display: none;
+      animation: fadeIn 0.16s ease-out;
     }
+    .view-panel.active {
+      display: block;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
+    /* Common Card Styles */
     .card {
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
@@ -130,9 +189,8 @@
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
       transition: border-color 0.2s, transform 0.2s;
     }
-
     .card:hover {
-      border-color: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.14);
     }
 
     .card-header {
@@ -143,16 +201,19 @@
     }
 
     .card-title {
-      font-size: 0.88rem;
-      font-weight: 600;
+      font-size: 0.85rem;
+      font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.04em;
       color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .speed-number {
       font-family: 'JetBrains Mono', monospace;
-      font-size: 2.2rem;
+      font-size: 2.1rem;
       font-weight: 800;
       line-height: 1.1;
       margin-bottom: 6px;
@@ -163,7 +224,7 @@
     .color-total { color: var(--accent-total); }
 
     .speed-sub {
-      font-size: 0.85rem;
+      font-size: 0.84rem;
       color: var(--text-muted);
       display: flex;
       gap: 12px;
@@ -176,386 +237,334 @@
       border-top: 1px solid rgba(255, 255, 255, 0.06);
       display: flex;
       justify-content: space-between;
-      font-size: 0.85rem;
+      font-size: 0.84rem;
     }
 
-    /* Live Chart Section */
+    /* Grids */
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    @media (max-width: 900px) {
+      .grid-3 { grid-template-columns: 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+      header { flex-direction: column; align-items: stretch; }
+      .tab-nav { overflow-x: auto; }
+    }
+
+    /* Real-Time Chart */
     .chart-section {
       background: var(--bg-card);
       border: 1px solid var(--border-subtle);
       border-radius: 16px;
       padding: 20px;
-      margin-bottom: 20px;
+      margin-bottom: 18px;
     }
-
     .chart-container {
       position: relative;
-      height: 240px;
+      height: 230px;
       width: 100%;
     }
 
-    /* Details Dual Column */
-    .details-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      margin-bottom: 20px;
-    }
-
-    @media (max-width: 800px) {
-      .details-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-
+    /* Info Lists */
     .info-list {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
     }
-
     .info-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 8px 0;
+      padding: 7px 0;
       border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-      font-size: 0.92rem;
+      font-size: 0.9rem;
     }
-
     .info-row:last-child {
       border-bottom: none;
     }
-
     .info-row .label {
       color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
-
     .info-row .val {
       font-weight: 600;
       font-family: 'JetBrains Mono', monospace;
     }
+    .val.copyable {
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.05);
+      transition: background 0.15s;
+    }
+    .val.copyable:hover {
+      background: rgba(56, 189, 248, 0.2);
+      color: #38bdf8;
+    }
 
-    /* App Usage Table */
-    .app-table {
+    /* --- PAGE: PROCESS TELEMETRY --- */
+    .proc-hero {
+      background: linear-gradient(135deg, rgba(30, 41, 59, 0.6) 0%, rgba(15, 23, 42, 0.8) 100%);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 18px;
+    }
+    .proc-hero-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+    .proc-conns-badge {
+      background: rgba(56, 189, 248, 0.16);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      color: #38bdf8;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+    .proc-table {
       width: 100%;
       border-collapse: collapse;
       font-size: 0.88rem;
     }
-
-    .app-table th {
+    .proc-table th {
       text-align: left;
       color: var(--text-muted);
-      padding: 8px 10px;
+      padding: 10px 12px;
       border-bottom: 1px solid var(--border-subtle);
       font-weight: 600;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
     }
-
-    .app-table td {
-      padding: 10px;
+    .proc-table td {
+      padding: 12px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.04);
       font-family: 'JetBrains Mono', monospace;
     }
-
-    .progress-bar-container {
-      width: 100%;
-      height: 8px;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 4px;
-      overflow: hidden;
-      margin-top: 10px;
+    .proc-table tr:hover td {
+      background: rgba(255, 255, 255, 0.03);
     }
-
-    .progress-bar-fill {
-      height: 100%;
-      background: linear-gradient(90deg, var(--accent-direct), var(--accent-vpn));
-      transition: width 0.4s ease;
-    }
-
-    /* Header Buttons & Dropdown */
-    .btn-settings, .btn-troubleshoot, .btn-options {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 14px;
-      border-radius: 9999px;
-      font-size: 0.82rem;
-      font-weight: 600;
-      cursor: pointer;
-      backdrop-filter: blur(8px);
-      transition: all 0.2s;
-    }
-    .btn-settings {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid var(--border-subtle);
-      color: var(--text-main);
-    }
-    .btn-settings:hover {
-      background: rgba(255, 255, 255, 0.16);
-      border-color: rgba(255, 255, 255, 0.3);
-      transform: translateY(-1px);
-    }
-    .btn-troubleshoot {
-      background: rgba(56, 189, 248, 0.16);
-      border: 1px solid rgba(56, 189, 248, 0.45);
-      color: var(--accent-direct);
-    }
-    .btn-troubleshoot:hover {
-      background: rgba(56, 189, 248, 0.28);
-      border-color: rgba(56, 189, 248, 0.7);
-      transform: translateY(-1px);
-      box-shadow: 0 2px 10px rgba(56, 189, 248, 0.25);
-    }
-    .btn-options {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid var(--border-subtle);
-      color: var(--text-main);
-    }
-    .btn-options:hover {
-      background: rgba(255, 255, 255, 0.16);
-      border-color: rgba(255, 255, 255, 0.3);
-      transform: translateY(-1px);
-    }
-
-    /* Options Dropdown Menu */
-    .dropdown-wrapper {
-      position: relative;
-      display: inline-block;
-    }
-    .dropdown-menu {
-      position: absolute;
-      top: calc(100% + 8px);
-      right: 0;
-      background: #161b22;
-      border: 1px solid var(--border-subtle);
-      border-radius: 14px;
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
-      min-width: 250px;
-      padding: 6px;
-      z-index: 1001;
-      animation: fadeIn 0.15s ease-out;
-    }
-    .dropdown-item {
+    .proc-name-cell {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 9px 12px;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    .dropdown-item:hover {
-      background: rgba(255, 255, 255, 0.08);
-    }
-    .dropdown-icon {
-      font-size: 1.15rem;
-      flex-shrink: 0;
-    }
-    .item-title {
-      font-size: 0.85rem;
+      gap: 10px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
       font-weight: 600;
       color: var(--text-main);
-      line-height: 1.2;
     }
-    .item-desc {
+    .proc-pid-chip {
+      font-family: 'JetBrains Mono', monospace;
       font-size: 0.72rem;
       color: var(--text-muted);
-      margin-top: 2px;
-    }
-    .dropdown-divider {
-      height: 1px;
       background: rgba(255, 255, 255, 0.06);
-      margin: 4px 6px;
+      padding: 2px 6px;
+      border-radius: 4px;
     }
 
-    /* Modal Navigation Tabs */
-    .modal-tabs {
-      display: flex;
-      gap: 6px;
-      padding: 10px 24px;
-      border-bottom: 1px solid var(--border-subtle);
-      background: rgba(0, 0, 0, 0.2);
-      overflow-x: auto;
-    }
-    .modal-tab-btn {
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      font-size: 0.84rem;
-      font-weight: 600;
-      padding: 8px 14px;
-      border-radius: 8px;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: all 0.15s;
-    }
-    .modal-tab-btn:hover {
-      color: var(--text-main);
-      background: rgba(255, 255, 255, 0.06);
-    }
-    .modal-tab-btn.active {
-      color: #38bdf8;
-      background: rgba(56, 189, 248, 0.15);
-      border: 1px solid rgba(56, 189, 248, 0.3);
-    }
-
-    /* Diagnostics Health Grid */
-    .diag-health-grid {
-      display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 10px;
-      margin-bottom: 18px;
-    }
-    @media (max-width: 600px) {
-      .diag-health-grid {
-        grid-template-columns: 1fr;
-      }
-    }
-    .diag-health-card {
+    /* --- PAGE: SPEED BENCHMARK --- */
+    .bench-meta-chip {
       background: rgba(255, 255, 255, 0.03);
       border: 1px solid rgba(255, 255, 255, 0.06);
       border-radius: 12px;
-      padding: 12px 14px;
+      padding: 14px 16px;
     }
-    .diag-health-title {
+    .bench-meta-title {
       font-size: 0.72rem;
       text-transform: uppercase;
       font-weight: 700;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
       color: var(--text-muted);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
-    .diag-health-val {
-      font-size: 0.95rem;
+    .bench-meta-val {
+      font-size: 1.05rem;
       font-weight: 700;
-      margin-top: 4px;
       color: var(--text-main);
-      font-family: 'JetBrains Mono', monospace;
     }
-    .diag-health-sub {
-      font-size: 0.78rem;
+    .bench-meta-sub {
+      font-size: 0.8rem;
       color: var(--text-muted);
       margin-top: 2px;
     }
+    .bench-hero {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 18px;
+    }
+    .bench-hero-top {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .btn-bench-start {
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.95rem;
+      padding: 12px 28px;
+      border-radius: 9999px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(56, 189, 248, 0.35);
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .btn-bench-start:hover:not(:disabled) {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(56, 189, 248, 0.5);
+    }
+    .btn-bench-start:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .bench-progress-wrapper {
+      flex: 1;
+      min-width: 200px;
+    }
+    .bench-progress-track {
+      width: 100%;
+      height: 10px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 5px;
+      overflow: hidden;
+      margin-top: 6px;
+    }
+    .bench-progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #38bdf8, #c084fc);
+      transition: width 0.2s ease;
+    }
+    .bench-progress-text {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+    .grade-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.6rem;
+      font-weight: 800;
+      padding: 6px 16px;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      min-width: 70px;
+      text-align: center;
+    }
+    .grade-badge-good {
+      background: rgba(74, 222, 128, 0.16);
+      border-color: rgba(74, 222, 128, 0.45);
+      color: var(--accent-total);
+      box-shadow: 0 2px 12px rgba(74, 222, 128, 0.2);
+    }
+    .grade-badge-fair {
+      background: rgba(251, 191, 36, 0.16);
+      border-color: rgba(251, 191, 36, 0.45);
+      color: var(--accent-warning);
+    }
+    .grade-badge-poor {
+      background: rgba(248, 113, 113, 0.16);
+      border-color: rgba(248, 113, 113, 0.45);
+      color: var(--accent-danger);
+    }
 
-    /* Modal Backdrop & Content */
-    .modal-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(0, 0, 0, 0.75);
-      backdrop-filter: blur(8px);
+    /* --- PAGE: SETTINGS & QUICK TILES --- */
+    .quick-tiles-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+    @media (max-width: 650px) {
+      .quick-tiles-grid { grid-template-columns: 1fr; }
+    }
+    .quick-tile {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 14px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      text-align: left;
+    }
+    .quick-tile:hover {
+      background: var(--bg-card-hover);
+      border-color: rgba(255, 255, 255, 0.18);
+      transform: translateY(-1px);
+    }
+    .quick-tile.active {
+      background: rgba(56, 189, 248, 0.12);
+      border-color: rgba(56, 189, 248, 0.4);
+      box-shadow: 0 4px 16px rgba(56, 189, 248, 0.1);
+    }
+    .quick-tile-icon-box {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.05);
       display: flex;
       align-items: center;
       justify-content: center;
-      z-index: 1000;
-      padding: 16px;
-      animation: fadeIn 0.15s ease-out;
-    }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-    .modal-content {
-      background: #161b22;
-      border: 1px solid var(--border-subtle);
-      border-radius: 20px;
-      max-width: 640px;
-      width: 100%;
-      max-height: 88vh;
-      overflow-y: auto;
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
-    }
-    .modal-header {
-      padding: 20px 24px;
-      border-bottom: 1px solid var(--border-subtle);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      position: sticky;
-      top: 0;
-      background: #161b22;
-      z-index: 10;
-    }
-    .modal-close-btn {
-      background: none;
-      border: none;
+      flex-shrink: 0;
       color: var(--text-muted);
-      font-size: 1.8rem;
-      cursor: pointer;
-      line-height: 1;
-      padding: 4px 8px;
-      border-radius: 8px;
-      transition: color 0.2s;
+      transition: all 0.18s ease;
     }
-    .modal-close-btn:hover {
-      color: var(--text-main);
-      background: rgba(255, 255, 255, 0.1);
+    .quick-tile.active .quick-tile-icon-box {
+      background: rgba(56, 189, 248, 0.22);
+      color: #38bdf8;
     }
-    .modal-body {
-      padding: 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 22px;
+    .quick-tile-info {
+      flex: 1;
     }
-    .settings-group {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      padding-bottom: 18px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    }
-    .settings-group-title {
+    .quick-tile-title {
       font-size: 0.92rem;
       font-weight: 700;
-      color: #e6edf3;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .tools-grid {
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-    .tool-card {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
-      border-radius: 12px;
-      padding: 12px 16px;
-      transition: background 0.2s;
-    }
-    .tool-card:hover {
-      background: rgba(255, 255, 255, 0.06);
-    }
-    .tool-info strong {
-      font-size: 0.9rem;
-      display: block;
       color: var(--text-main);
     }
-    .tool-info p {
-      font-size: 0.8rem;
-      color: var(--text-muted);
+    .quick-tile-status {
+      font-size: 0.78rem;
+      font-weight: 600;
       margin-top: 2px;
     }
-    .setting-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      padding: 4px 0;
-    }
-    .setting-info strong {
-      font-size: 0.9rem;
-      display: block;
-      color: var(--text-main);
-    }
-    .setting-info p {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      margin-top: 2px;
-    }
-    /* Switch toggle */
+    .status-on { color: var(--accent-total); }
+    .status-off { color: var(--text-muted); }
+    .status-action { color: var(--accent-direct); }
+
+    /* Switch Component */
     .switch {
       position: relative;
       display: inline-block;
@@ -563,221 +572,154 @@
       height: 24px;
       flex-shrink: 0;
     }
-    .switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
+    .switch input { opacity: 0; width: 0; height: 0; }
     .slider {
       position: absolute;
       cursor: pointer;
       inset: 0;
-      background-color: #30363d;
-      transition: 0.25s;
+      background-color: rgba(255, 255, 255, 0.12);
+      transition: .2s;
       border-radius: 24px;
+      border: 1px solid var(--border-subtle);
     }
     .slider:before {
       position: absolute;
       content: "";
-      height: 18px;
-      width: 18px;
+      height: 16px;
+      width: 16px;
       left: 3px;
       bottom: 3px;
       background-color: white;
-      transition: 0.25s;
+      transition: .2s;
       border-radius: 50%;
     }
     input:checked + .slider {
       background-color: #38bdf8;
+      border-color: #38bdf8;
     }
     input:checked + .slider:before {
       transform: translateX(20px);
     }
-    /* Action Buttons */
-    .btn-action, .btn-secondary, .btn-danger {
-      padding: 7px 14px;
-      border-radius: 8px;
-      font-size: 0.84rem;
-      font-weight: 600;
-      cursor: pointer;
-      border: 1px solid transparent;
-      white-space: nowrap;
-      transition: all 0.2s;
-    }
-    .btn-action {
-      background: rgba(56, 189, 248, 0.15);
-      border-color: rgba(56, 189, 248, 0.4);
-      color: #38bdf8;
-    }
-    .btn-action:hover:not(:disabled) {
-      background: rgba(56, 189, 248, 0.3);
-    }
-    .btn-action:disabled {
-      opacity: 0.6;
-      cursor: not-allowed;
-    }
-    .btn-secondary {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: var(--border-subtle);
-      color: var(--text-main);
-    }
-    .btn-secondary:hover:not(:disabled) {
-      background: rgba(255, 255, 255, 0.16);
-    }
-    .btn-danger {
-      background: rgba(248, 113, 113, 0.15);
-      border-color: rgba(248, 113, 113, 0.4);
-      color: #f87171;
-    }
-    .btn-danger:hover:not(:disabled) {
-      background: rgba(248, 113, 113, 0.3);
-    }
-    .tool-alert {
-      padding: 10px 14px;
-      border-radius: 10px;
-      font-size: 0.85rem;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      animation: fadeIn 0.2s;
-    }
-    .tool-alert-success {
-      background: rgba(74, 222, 128, 0.15);
-      border: 1px solid rgba(74, 222, 128, 0.35);
-      color: #4ade80;
-    }
-    .tool-alert-error {
-      background: rgba(248, 113, 113, 0.15);
-      border: 1px solid rgba(248, 113, 113, 0.35);
-      color: #f87171;
-    }
-    .tool-alert-info {
-      background: rgba(56, 189, 248, 0.15);
-      border: 1px solid rgba(56, 189, 248, 0.35);
-      color: #38bdf8;
-    }
-    .copyable {
-      cursor: pointer;
-      position: relative;
-      transition: color 0.15s;
-    }
-    .copyable:hover {
-      color: #38bdf8 !important;
-      text-decoration: underline;
-    }
-    .copy-toast {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      background: #1f2937;
-      border: 1px solid rgba(56, 189, 248, 0.4);
-      color: #f3f4f6;
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 0.85rem;
-      font-weight: 500;
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-      z-index: 2000;
-      animation: fadeIn 0.2s;
-    }
-    .btn-hud {
-      background: rgba(168, 85, 247, 0.18);
-      border: 1px solid rgba(168, 85, 247, 0.45);
-      color: #c084fc;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .btn-hud:hover {
-      background: rgba(168, 85, 247, 0.35);
-      border-color: rgba(168, 85, 247, 0.7);
-      transform: translateY(-1px);
-    }
+
     .input-select {
-      background: #111827;
-      border: 1px solid #374151;
-      border-radius: 8px;
-      color: #f3f4f6;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-main);
       padding: 6px 12px;
+      border-radius: 8px;
       font-size: 0.85rem;
+      font-weight: 600;
       outline: none;
-      transition: border-color 0.2s;
-      cursor: pointer;
     }
     .input-select:focus {
       border-color: #38bdf8;
     }
+
+    .btn-action {
+      background: rgba(56, 189, 248, 0.15);
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      color: #38bdf8;
+      padding: 7px 16px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-action:hover:not(:disabled) {
+      background: rgba(56, 189, 248, 0.28);
+      border-color: #38bdf8;
+    }
+    .btn-action:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-danger {
+      background: rgba(248, 113, 113, 0.15);
+      border: 1px solid rgba(248, 113, 113, 0.4);
+      color: var(--accent-danger);
+      padding: 7px 16px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-danger:hover {
+      background: rgba(248, 113, 113, 0.28);
+    }
+
+    /* Floating Mini Desktop/Web HUD */
     .web-floating-hud {
       position: fixed;
-      bottom: 30px;
-      left: 30px;
-      z-index: 1999;
-      background: rgba(17, 24, 39, 0.92);
+      bottom: 24px;
+      right: 24px;
+      background: rgba(13, 17, 23, 0.9);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 9999px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6), 0 0 16px rgba(56, 189, 248, 0.15);
       backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid rgba(255, 255, 255, 0.16);
-      border-radius: 20px;
-      padding: 8px 16px;
-      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
+      z-index: 9999;
       user-select: none;
-      cursor: move;
-      transition: box-shadow 0.2s, border-color 0.2s;
-    }
-    .web-floating-hud:hover {
-      border-color: rgba(56, 189, 248, 0.5);
-      box-shadow: 0 16px 42px rgba(0, 0, 0, 0.75);
+      transition: opacity 0.2s;
     }
     .hud-handle {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
+      padding: 8px 18px;
+      cursor: grab;
     }
     .hud-dot {
-      width: 10px;
-      height: 10px;
+      width: 9px;
+      height: 9px;
       border-radius: 50%;
-      background: #22c55e;
-      flex-shrink: 0;
-      transition: background-color 0.3s;
+      background: #4ade80;
     }
-    .hud-dot.vpn {
-      background: #a855f7;
-      box-shadow: 0 0 8px #a855f7;
-    }
-    .hud-dot.disconnected {
-      background: #ef4444;
-    }
-    .hud-text-group {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
+    .hud-dot.vpn { background: #c084fc; box-shadow: 0 0 8px #c084fc; }
+    .hud-dot.disconnected { background: #f87171; }
+    .hud-text-group { cursor: pointer; }
     .hud-primary-text {
-      font-size: 0.88rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.84rem;
       font-weight: 700;
-      font-family: monospace;
-      color: #ffffff;
-      white-space: nowrap;
+      color: #f0f6fc;
     }
     .hud-sub-text {
-      font-size: 0.72rem;
-      font-weight: 500;
-      color: rgba(255, 255, 255, 0.65);
-      white-space: nowrap;
+      font-size: 0.7rem;
+      color: #8b949e;
     }
     .hud-close-btn {
-      background: transparent;
+      background: none;
       border: none;
-      color: rgba(255, 255, 255, 0.45);
-      font-size: 0.8rem;
+      color: #8b949e;
+      font-size: 0.9rem;
       cursor: pointer;
       padding: 2px 4px;
       border-radius: 4px;
-      margin-left: 4px;
-      line-height: 1;
     }
-    .hud-close-btn:hover {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.1);
+    .hud-close-btn:hover { color: #f0f6fc; }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1f2937;
+      color: #f9fafb;
+      padding: 10px 20px;
+      border-radius: 9999px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      z-index: 10000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      animation: fadeIn 0.15s ease-out;
     }
   </style>
 </head>
@@ -785,13 +727,42 @@
   <div class="container">
     <!-- Header -->
     <header>
-      <div class="title-group">
-        <h1 style="display: flex; align-items: center; gap: 12px;">
-          <img src="/static/netsplit.svg" width="34" height="34" style="border-radius: 9px; box-shadow: 0 2px 10px rgba(56, 189, 248, 0.3);" alt="NetSplit Icon" />
-          NetSplit
-        </h1>
-        <p>Live Real-Time Traffic &amp; VPN / Proxy Split Accounting</p>
+      <div class="brand-group">
+        <img src="/static/netsplit.svg" width="32" height="32" style="border-radius: 8px;" alt="NetSplit" />
+        <div>
+          <h1>NetSplit</h1>
+        </div>
       </div>
+
+      <!-- Center Segmented Tab Switcher Navigation -->
+      <nav class="tab-nav">
+        <button id="nav-monitor" class="tab-btn active" onclick="switchTab('monitor')">
+          <svg class="tab-icon" viewBox="0 0 24 24"><path d="M4 4h16c1.1 0 2 .9 2 2v10c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2zm0 2v10h16V6H4zm6 12h4v2h-4v-2z"/></svg>
+          Monitor
+        </button>
+        <button id="nav-network" class="tab-btn" onclick="switchTab('network')">
+          <svg class="tab-icon" viewBox="0 0 24 24"><path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98A16.88 16.88 0 0 0 12 4zm0 3c3.78 0 7.22 1.45 9.81 3.84L12 18.5 2.19 10.84C4.78 8.45 8.22 7 12 7z"/></svg>
+          Network
+        </button>
+        <button id="nav-apps" class="tab-btn" onclick="switchTab('apps')">
+          <svg class="tab-icon" viewBox="0 0 24 24"><path d="M4 4h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 10h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 16h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/></svg>
+          Apps
+        </button>
+        <button id="nav-speed" class="tab-btn" onclick="switchTab('speed')">
+          <svg class="tab-icon" viewBox="0 0 24 24"><path d="M7 2v11h3v9l7-12h-4l4-8z"/></svg>
+          Speed
+        </button>
+        <button id="nav-history" class="tab-btn" onclick="switchTab('history')">
+          <svg class="tab-icon" viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+          History
+        </button>
+        <button id="nav-settings" class="tab-btn" onclick="switchTab('settings')">
+          <svg class="tab-icon" viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54A.484.484 0 0 0 14 2h-4c-.25 0-.46.17-.49.42l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.63 8.47a.49.49 0 0 0 .12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.49.41h4c.25 0 .46-.17.49-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+          Settings
+        </button>
+      </nav>
+
+      <!-- Right Header Status Badges -->
       <div class="header-badges">
         <div id="badge-wifi" class="badge badge-vpn-inactive">
           <span class="dot"></span>
@@ -799,475 +770,492 @@
         </div>
         <div id="badge-vpn" class="badge badge-vpn-inactive">
           <span class="dot"></span>
-          <span id="vpn-status-badge">VPN Disconnected</span>
+          <span id="vpn-status-badge">DIRECT</span>
         </div>
-        <!-- Troubleshoot Header Quick Button -->
-        <button id="btn-troubleshoot-open" class="badge btn-troubleshoot" onclick="openTroubleshoot()" title="Run Network Diagnostics &amp; 1-Click Fixes">
-          🛠️ Troubleshoot
+        <button id="btn-hud-toggle" class="badge btn-hud" onclick="toggleWebHud()" title="Toggle Floating HUD Widget">
+          📊 HUD
         </button>
-
-        <!-- Mini HUD Quick Button -->
-        <button id="btn-hud-toggle" class="badge btn-hud" onclick="toggleWebHud()" title="Toggle Mini Floating HUD Widget">
-          📊 Mini HUD
-        </button>
-
-        <!-- Options Menu Dropdown -->
-        <div class="dropdown-wrapper">
-          <button id="btn-options-open" class="badge btn-options" onclick="toggleOptionsMenu(event)" title="Options Menu">
-            ☰ Options ▾
-          </button>
-          <div id="options-menu" class="dropdown-menu" style="display: none;">
-            <div class="dropdown-item" onclick="toggleWebHud()">
-              <span class="dropdown-icon">📊</span>
-              <div>
-                <div class="item-title">Toggle Desktop / Web HUD</div>
-                <div class="item-desc">Movable live speed &amp; usage pill widget</div>
-              </div>
-            </div>
-            <div class="dropdown-item" onclick="openTroubleshoot()">
-              <span class="dropdown-icon">🛠️</span>
-              <div>
-                <div class="item-title">Troubleshoot Network...</div>
-                <div class="item-desc">Flush DNS, reset proxy, renew DHCP</div>
-              </div>
-            </div>
-            <div class="dropdown-item" onclick="openSettings('preferences')">
-              <span class="dropdown-icon">⚙️</span>
-              <div>
-                <div class="item-title">Preferences &amp; Settings</div>
-                <div class="item-desc">Privacy mode, autostart, rules</div>
-              </div>
-            </div>
-            <div class="dropdown-divider"></div>
-            <div class="dropdown-item" onclick="openSettings('data')">
-              <span class="dropdown-icon">📊</span>
-              <div>
-                <div class="item-title">Data Maintenance</div>
-                <div class="item-desc">Reset today's usage or clear history</div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
     </header>
 
-    <!-- Top Speeds Grid -->
-    <div class="grid-dashboard">
-      <!-- Direct Network Card (LAN or Wi-Fi) -->
-      <div class="card">
-        <div class="card-header">
-          <span id="card-direct-title" class="card-title">Direct Network</span>
-          <span style="font-size: 1.2rem;">🌐</span>
+    <!-- ========================================== -->
+    <!-- TAB 1: MONITOR (OVERVIEW)                  -->
+    <!-- ========================================== -->
+    <div id="view-monitor" class="view-panel active">
+      <!-- 3 Top Speeds Grid -->
+      <div class="grid-3">
+        <!-- Direct Network -->
+        <div class="card">
+          <div class="card-header">
+            <span id="card-direct-title" class="card-title">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+              Direct Network
+            </span>
+          </div>
+          <div id="speed-normal-down" class="speed-number color-direct">0.0 KB/s</div>
+          <div class="speed-sub">
+            <span>↓ <span id="speed-normal-sub-down">0.0 KB/s</span></span>
+            <span>↑ <span id="speed-normal-sub-up">0.0 KB/s</span></span>
+          </div>
+          <div class="card-footer-stat">
+            <span class="text-muted">Today Direct:</span>
+            <strong id="today-normal-val">0.0 MB</strong>
+          </div>
         </div>
-        <div id="speed-normal-down" class="speed-number color-direct">0.0 KB/s</div>
-        <div class="speed-sub">
-          <span>↓ <span id="speed-normal-sub-down">0.0 KB/s</span></span>
-          <span>↑ <span id="speed-normal-sub-up">0.0 KB/s</span></span>
+
+        <!-- VPN / Proxy Tunnel -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>
+              VPN / Proxy
+            </span>
+          </div>
+          <div id="speed-vpn-down" class="speed-number color-vpn">0.0 KB/s</div>
+          <div class="speed-sub">
+            <span>↓ <span id="speed-vpn-sub-down">0.0 KB/s</span></span>
+            <span>↑ <span id="speed-vpn-sub-up">0.0 KB/s</span></span>
+          </div>
+          <div class="card-footer-stat">
+            <span class="text-muted">Today VPN:</span>
+            <strong id="today-vpn-val">0.0 MB</strong>
+          </div>
         </div>
-        <div class="card-footer-stat">
-          <span class="text-muted">Today Direct:</span>
-          <strong id="today-normal-val">0.0 MB</strong>
+
+        <!-- Grand Total Network -->
+        <div class="card">
+          <div class="card-header">
+            <span id="card-total-title" class="card-title">
+              <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.48 2.54l2.6 1.53c.56-1.24.88-2.62.88-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.05.5-9 4.76-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.24-1.61 8.01-4.09l-2.46-1.46C16.14 17.84 14.22 19 12 19z"/></svg>
+              Total Network
+            </span>
+          </div>
+          <div id="speed-total-down" class="speed-number color-total">0.0 KB/s</div>
+          <div class="speed-sub">
+            <span>↓ <span id="speed-total-sub-down">0.0 KB/s</span></span>
+            <span>↑ <span id="speed-total-sub-up">0.0 KB/s</span></span>
+          </div>
+          <div class="card-footer-stat">
+            <span class="text-muted">Today Total:</span>
+            <strong id="today-total-val">0.0 MB</strong>
+          </div>
         </div>
       </div>
 
-      <!-- VPN / Proxy Card -->
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">VPN / Proxy (Tunnel)</span>
-          <span style="font-size: 1.2rem;">🛡️</span>
+      <!-- Live Speed Chart -->
+      <div class="chart-section">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <span class="card-title">Real-Time Throughput (30 Seconds)</span>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">
+            <span style="color: var(--accent-direct)">● Direct</span> &nbsp;
+            <span style="color: var(--accent-vpn)">● VPN</span> &nbsp;
+            <span style="color: var(--accent-total)">● Total</span>
+          </span>
         </div>
-        <div id="speed-vpn-down" class="speed-number color-vpn">0.0 KB/s</div>
-        <div class="speed-sub">
-          <span>↓ <span id="speed-vpn-sub-down">0.0 KB/s</span></span>
-          <span>↑ <span id="speed-vpn-sub-up">0.0 KB/s</span></span>
-        </div>
-        <div class="card-footer-stat">
-          <span class="text-muted">Today VPN:</span>
-          <strong id="today-vpn-val">0.0 MB</strong>
-        </div>
-      </div>
-
-      <!-- Total Combined Network Card -->
-      <div class="card">
-        <div class="card-header">
-          <span id="card-total-title" class="card-title">Total Network (Physical)</span>
-          <span style="font-size: 1.2rem;">⚡</span>
-        </div>
-
-        <div id="speed-total-down" class="speed-number color-total">0.0 KB/s</div>
-        <div class="speed-sub">
-          <span>↓ <span id="speed-total-sub-down">0.0 KB/s</span></span>
-          <span>↑ <span id="speed-total-sub-up">0.0 KB/s</span></span>
-        </div>
-        <div class="card-footer-stat">
-          <span class="text-muted">Today Grand Total:</span>
-          <strong id="today-total-val">0.0 MB</strong>
+        <div class="chart-container">
+          <canvas id="speedChart"></canvas>
         </div>
       </div>
     </div>
 
-    <!-- Real-time Chart Section -->
-    <div class="chart-section">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <span class="card-title">Real-Time Download Speed (Past 30 Seconds)</span>
-        <span id="chart-legend" style="font-size: 0.8rem; color: var(--text-muted);">
-          <span style="color: var(--accent-direct)">● Normal</span> &nbsp;
-          <span style="color: var(--accent-vpn)">● VPN</span> &nbsp;
-          <span style="color: var(--accent-total)">● Total</span>
-        </span>
-      </div>
-      <div class="chart-container">
-        <canvas id="speedChart"></canvas>
+    <!-- ========================================== -->
+    <!-- TAB 2: NETWORK & INTERFACES                -->
+    <!-- ========================================== -->
+    <div id="view-network" class="view-panel">
+      <div class="grid-2">
+        <!-- Physical Wi-Fi / LAN Card -->
+        <div class="card">
+          <div class="card-header">
+            <span id="card-wifi-title" class="card-title">Physical Interface</span>
+            <span id="card-wifi-icon">📡</span>
+          </div>
+          <div class="info-list">
+            <div class="info-row">
+              <span class="label" id="label-ssid">SSID / Interface</span>
+              <span class="val" id="info-ssid">--</span>
+            </div>
+            <div class="info-row">
+              <span class="label" id="label-signal">Signal Quality</span>
+              <span class="val" id="info-signal">--</span>
+            </div>
+            <div class="info-row">
+              <span class="label" id="label-rate">Link Bitrate</span>
+              <span class="val" id="info-rate">--</span>
+            </div>
+            <div class="info-row">
+              <span class="label" id="label-band">Band &amp; Channel</span>
+              <span class="val" id="info-band">--</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Router Latency (Gateway)</span>
+              <span class="val" id="info-ping-gw">-- ms</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Internet Latency (1.1.1.1)</span>
+              <span class="val" id="info-ping-inet">-- ms</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Local IP Address</span>
+              <span class="val copyable" id="info-local-ip" title="Click to copy" onclick="copyIpText(this)">--</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Public Egress IP</span>
+              <span class="val copyable" id="info-public-ip" title="Click to copy" onclick="copyIpText(this)">--</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- VPN & Proxy Breakdown Card -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">VPN &amp; Proxy Tunnel</span>
+            <span>🛡️</span>
+          </div>
+          <div class="info-list" style="margin-bottom: 16px;">
+            <div class="info-row">
+              <span class="label">Connection State</span>
+              <span class="val" id="throne-state-text">Disconnected</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Active Profile</span>
+              <span class="val" id="throne-profile">None</span>
+            </div>
+            <div class="info-row">
+              <span class="label">TUN Interface</span>
+              <span class="val" id="throne-tun-iface">Inactive</span>
+            </div>
+          </div>
+
+          <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">
+            Routed Applications
+          </div>
+          <table class="proc-table">
+            <thead>
+              <tr>
+                <th>Process</th>
+                <th style="text-align: right;">Total / Conns</th>
+              </tr>
+            </thead>
+            <tbody id="app-table-body">
+              <tr><td colspan="2" style="color: var(--text-muted);">No app data yet</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
-    <!-- Details Grid -->
-    <div class="details-grid">
-      <!-- Wi-Fi & Latency Info Card -->
-      <div class="card">
-        <div class="card-header">
-          <span id="card-wifi-title" class="card-title">Wi-Fi & Diagnostics</span>
-          <span id="card-wifi-icon">📡</span>
+    <!-- ========================================== -->
+    <!-- TAB 3: PROCESS TELEMETRY (PER-APP USAGE)   -->
+    <!-- ========================================== -->
+    <div id="view-apps" class="view-panel">
+      <!-- Hero Aggregate Bandwidth Card -->
+      <div class="proc-hero">
+        <div class="proc-hero-header">
+          <span class="card-title" style="color: #f0f6fc;">
+            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M4 4h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 10h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 16h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z"/></svg>
+            System-Wide Process Telemetry
+          </span>
+          <span id="proc-active-badge" class="proc-conns-badge">0 Apps Active</span>
         </div>
-        <div class="info-list">
-          <div class="info-row">
-            <span class="label" id="label-ssid">SSID (Network)</span>
-            <span class="val" id="info-ssid">--</span>
+        <div class="grid-3" style="margin-bottom: 0;">
+          <div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted);">↓ App Download</div>
+            <div id="proc-agg-down" class="speed-number color-direct" style="font-size: 1.6rem;">0 B/s</div>
           </div>
-          <div class="info-row">
-            <span class="label" id="label-signal">Signal Quality</span>
-            <span class="val" id="info-signal">--%</span>
+          <div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted);">↑ App Upload</div>
+            <div id="proc-agg-up" class="speed-number color-vpn" style="font-size: 1.6rem;">0 B/s</div>
           </div>
-          <div class="info-row">
-            <span class="label" id="label-rate">Link Bitrate</span>
-            <span class="val" id="info-rate">--</span>
-          </div>
-          <div class="info-row">
-            <span class="label" id="label-band">Band & Channel</span>
-            <span class="val" id="info-band">--</span>
-          </div>
-          <div class="info-row">
-            <span class="label">Router Latency (Gateway)</span>
-            <span class="val" id="info-ping-gw">-- ms</span>
-          </div>
-          <div class="info-row">
-            <span class="label">Internet Latency (1.1.1.1)</span>
-            <span class="val" id="info-ping-inet">-- ms</span>
-          </div>
-          <div class="info-row">
-            <span class="label">Local IP</span>
-            <span class="val copyable" id="info-local-ip" title="Click to copy IP" onclick="copyIpText(this)">--</span>
-          </div>
-          <div class="info-row">
-            <span class="label">Public Egress IP</span>
-            <span class="val copyable" id="info-public-ip" title="Click to copy IP" onclick="copyIpText(this)">--</span>
+          <div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted);">Total Throughput</div>
+            <div id="proc-agg-total" class="speed-number color-total" style="font-size: 1.6rem;">0 B/s</div>
           </div>
         </div>
       </div>
 
-      <!-- Universal VPN & Top Apps Card -->
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">VPN &amp; Proxy Breakdown</span>
-          <span>🔒</span>
-        </div>
-        <div class="info-list" style="margin-bottom: 14px;">
-          <div class="info-row">
-            <span class="label">Connection State</span>
-            <span class="val" id="throne-state-text">Disconnected</span>
-          </div>
-          <div class="info-row">
-            <span class="label">Active Profile / Client</span>
-            <span class="val" id="throne-profile">None</span>
-          </div>
-          <div class="info-row">
-            <span class="label">TUN Interface</span>
-            <span class="val" id="throne-tun-iface">Inactive</span>
-          </div>
-        </div>
-
-        <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 8px;">
-          APPLICATIONS ROUTED VIA VPN / PROXY
-        </div>
-        <table class="app-table">
+      <!-- Application Live Table -->
+      <div class="card" style="padding: 12px 16px;">
+        <table class="proc-table">
           <thead>
             <tr>
               <th>Application</th>
-              <th style="text-align: right;">Total / Conns</th>
+              <th style="text-align: center;">Sockets</th>
+              <th style="text-align: right;">Download Rate</th>
+              <th style="text-align: right;">Upload Rate</th>
+              <th style="text-align: right;">Session Total</th>
             </tr>
           </thead>
-          <tbody id="app-table-body">
-            <tr><td colspan="2" style="color: var(--text-muted);">No app data yet</td></tr>
+          <tbody id="proc-telemetry-body">
+            <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">Monitoring system network socket activity...</td></tr>
           </tbody>
         </table>
       </div>
     </div>
-  </div>
 
-  <!-- Settings & Network Tools Modal -->
-  <div id="modal-settings" class="modal-backdrop" style="display: none;">
-    <div class="modal-content">
-      <div class="modal-header">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <span id="modal-header-icon" style="font-size: 1.5rem;">🛠️</span>
+    <!-- ========================================== -->
+    <!-- TAB 4: BUILT-IN SPEED BENCHMARK            -->
+    <!-- ========================================== -->
+    <div id="view-speed" class="view-panel">
+      <!-- 1. Geo & Provider Ribbon -->
+      <div class="grid-2">
+        <div class="bench-meta-chip">
+          <div class="bench-meta-title">
+            <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+            Client Provider
+          </div>
+          <div id="bench-client-isp" class="bench-meta-val">Detecting Provider...</div>
+          <div id="bench-client-loc" class="bench-meta-sub">Location: Detecting...</div>
+        </div>
+
+        <div class="bench-meta-chip">
+          <div class="bench-meta-title">
+            <svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M4 1h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zm0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1zm0 8h16a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1z"/></svg>
+            Edge Server
+          </div>
+          <div id="bench-server-name" class="bench-meta-val">Cloudflare Global Anycast Edge</div>
+          <div id="bench-server-loc" class="bench-meta-sub">Location: Optimal Server PoP</div>
+        </div>
+      </div>
+
+      <!-- 2. Prominent 3-Gauge Cards -->
+      <div class="grid-3">
+        <!-- Download Gauge -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">↓ Download</span>
+          </div>
+          <div id="bench-val-dl" class="speed-number color-direct">--</div>
+          <div class="speed-sub">
+            <span id="bench-sub-dl">Loaded Latency: --</span>
+          </div>
+        </div>
+
+        <!-- Upload Gauge -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">↑ Upload</span>
+          </div>
+          <div id="bench-val-ul" class="speed-number color-vpn">--</div>
+          <div class="speed-sub">
+            <span id="bench-sub-ul">Loaded Latency: --</span>
+          </div>
+        </div>
+
+        <!-- Ping & Jitter Gauge -->
+        <div class="card">
+          <div class="card-header">
+            <span class="card-title">⏱ Latency</span>
+          </div>
+          <div id="bench-val-ping" class="speed-number color-total">--</div>
+          <div class="speed-sub">
+            <span id="bench-sub-ping">Jitter: --</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3. Action Hero Card -->
+      <div class="bench-hero">
+        <div class="bench-hero-top">
+          <button id="btn-start-bench" class="btn-bench-start" onclick="startSpeedBenchmark()">
+            <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            Start Test
+          </button>
+          <div class="bench-progress-wrapper">
+            <div class="bench-progress-text">
+              <span id="bench-status-label">Ready</span>
+              <span id="bench-percent-label">0%</span>
+            </div>
+            <div class="bench-progress-track">
+              <div id="bench-progress-bar" class="bench-progress-bar"></div>
+            </div>
+          </div>
           <div>
-            <h2 id="modal-header-title" style="font-size: 1.25rem; font-weight: 700; line-height: 1.2;">Network Diagnostics &amp; Settings</h2>
-            <p id="modal-header-subtitle" style="font-size: 0.8rem; color: var(--text-muted); margin-top: 2px;">Real-time network health diagnostics and 1-click repairs</p>
+            <div id="bench-grade-badge" class="grade-badge">--</div>
           </div>
         </div>
-        <button id="btn-settings-close" class="modal-close-btn" onclick="closeSettings()">&times;</button>
       </div>
 
-      <!-- Modern Navigation Tabs inside Modal -->
-      <div class="modal-tabs">
-        <button id="tab-btn-troubleshoot" class="modal-tab-btn active" onclick="switchModalTab('troubleshoot')">
-          🛠️ Troubleshoot &amp; Health
-        </button>
-        <button id="tab-btn-preferences" class="modal-tab-btn" onclick="switchModalTab('preferences')">
-          ⚙️ Preferences
-        </button>
-        <button id="tab-btn-data" class="modal-tab-btn" onclick="switchModalTab('data')">
-          📊 Data Maintenance
-        </button>
-        <button id="tab-btn-about" class="modal-tab-btn" onclick="switchModalTab('about')">
-          ℹ️ About
-        </button>
+      <!-- 4. Bufferbloat & Quality Telemetry Breakdown -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Bufferbloat &amp; Connection Quality</span>
+        </div>
+        <div class="info-list">
+          <div class="info-row">
+            <span class="label">Idle Latency</span>
+            <span class="val" id="bench-detail-idle">--</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Download Latency (Loaded)</span>
+            <span class="val" id="bench-detail-dl-bloat">--</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Upload Latency (Loaded)</span>
+            <span class="val" id="bench-detail-ul-bloat">--</span>
+          </div>
+          <div class="info-row">
+            <span class="label">Bufferbloat Grade</span>
+            <span class="val" id="bench-detail-grade-desc" style="color: var(--accent-direct);">Run benchmark to test</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 5: HISTORY                             -->
+    <!-- ========================================== -->
+    <div id="view-history" class="view-panel">
+      <div class="card" style="margin-bottom: 18px;">
+        <div class="card-header">
+          <span class="card-title">Daily Usage Breakdown (Past 7 Days)</span>
+        </div>
+        <div id="history-daily-list" class="info-list">
+          <div style="color: var(--text-muted); text-align: center; padding: 20px;">Loading historical records...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- TAB 6: SETTINGS & QUICK TILES              -->
+    <!-- ========================================== -->
+    <div id="view-settings" class="view-panel">
+      <!-- 1. Quick Settings Tiles (2x3 Grid) -->
+      <div style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 10px;">
+        Quick Settings
+      </div>
+      <div class="quick-tiles-grid">
+        <!-- Tile 1: Privacy Mode -->
+        <div id="tile-privacy" class="quick-tile" onclick="toggleQuickTile('mask_ips')">
+          <div class="quick-tile-icon-box">
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 6c1.4 0 2.5 1.1 2.5 2.5V11c.6 0 1 .4 1 1v4c0 .6-.4 1-1 1h-5c-.6 0-1-.4-1-1v-4c0-.6.4-1 1-1V9.5C9.5 8.1 10.6 7 12 7zm0 1.5c-.6 0-1 .4-1 1V11h2V9.5c0-.6-.4-1-1-1z"/></svg>
+          </div>
+          <div class="quick-tile-info">
+            <div class="quick-tile-title">Privacy</div>
+            <div id="tile-privacy-status" class="quick-tile-status status-off">Off</div>
+          </div>
+        </div>
+
+        <!-- Tile 2: Desktop HUD -->
+        <div id="tile-hud" class="quick-tile" onclick="toggleQuickTile('hud_enabled')">
+          <div class="quick-tile-icon-box">
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"/></svg>
+          </div>
+          <div class="quick-tile-info">
+            <div class="quick-tile-title">Desktop HUD</div>
+            <div id="tile-hud-status" class="quick-tile-status status-off">Off</div>
+          </div>
+        </div>
+
+        <!-- Tile 3: Exclusive VPN -->
+        <div id="tile-exclusive" class="quick-tile" onclick="toggleQuickTile('exclusive_mode')">
+          <div class="quick-tile-icon-box">
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+          </div>
+          <div class="quick-tile-info">
+            <div class="quick-tile-title">Exclusive VPN</div>
+            <div id="tile-exclusive-status" class="quick-tile-status status-off">Off</div>
+          </div>
+        </div>
+
+        <!-- Tile 4: Start on Boot -->
+        <div id="tile-autostart" class="quick-tile" onclick="toggleQuickTile('autostart')">
+          <div class="quick-tile-icon-box">
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M13.13 2.51c.37-.85 1.57-.85 1.94 0l1.24 2.87 3.09.45c.92.13 1.29 1.27.62 1.92l-2.24 2.18.53 3.08c.16.92-.81 1.62-1.63 1.19L14 12.75l-2.76 1.45c-.82.43-1.79-.27-1.63-1.19l.53-3.08-2.24-2.18c-.67-.65-.3-1.79.62-1.92l3.09-.45 1.24-2.87zM12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20z"/></svg>
+          </div>
+          <div class="quick-tile-info">
+            <div class="quick-tile-title">Start on Boot</div>
+            <div id="tile-autostart-status" class="quick-tile-status status-off">Off</div>
+          </div>
+        </div>
+
+        <!-- Tile 5: System Tray -->
+        <div id="tile-tray" class="quick-tile" onclick="toggleQuickTile('tray_enabled')">
+          <div class="quick-tile-icon-box">
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4v-4h16v4zm0-6H4V6h16v6z"/></svg>
+          </div>
+          <div class="quick-tile-info">
+            <div class="quick-tile-title">System Tray</div>
+            <div id="tile-tray-status" class="quick-tile-status status-off">Off</div>
+          </div>
+        </div>
+
+        <!-- Tile 6: Flush DNS Resolver -->
+        <div id="tile-dns" class="quick-tile" onclick="executeQuickFlushDns()">
+          <div class="quick-tile-icon-box">
+            <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+          </div>
+          <div class="quick-tile-info">
+            <div class="quick-tile-title">Flush DNS</div>
+            <div id="tile-dns-status" class="quick-tile-status status-action">Ready</div>
+          </div>
+        </div>
       </div>
 
-      <div class="modal-body">
-        <!-- Toast / Status Alert Inside Modal -->
-        <div id="tool-alert" class="tool-alert" style="display: none;"></div>
-
-        <!-- TAB 1: Troubleshoot & Diagnostics -->
-        <div id="tab-content-troubleshoot" class="modal-tab-content">
-          <!-- Real-Time Diagnostics Health Dashboard -->
-          <div class="diag-health-grid">
-            <div class="diag-health-card">
-              <div class="diag-health-title">Router Gateway Link</div>
-              <div id="diag-gw-status" class="diag-health-val" style="color: var(--accent-total);">Online</div>
-              <div id="diag-gw-sub" class="diag-health-sub">Ping: --</div>
-            </div>
-            <div class="diag-health-card">
-              <div class="diag-health-title">Internet &amp; DNS Health</div>
-              <div id="diag-dns-status" class="diag-health-val" style="color: var(--accent-total);">Resolving</div>
-              <div id="diag-dns-sub" class="diag-health-sub">DNS: 1.1.1.1</div>
-            </div>
-            <div class="diag-health-card">
-              <div class="diag-health-title">System Proxy State</div>
-              <div id="diag-proxy-status" class="diag-health-val">Direct (Clean)</div>
-              <div id="diag-proxy-sub" class="diag-health-sub">No dead proxy redirect</div>
-            </div>
-            <div class="diag-health-card">
-              <div class="diag-health-title">Tunnel / VPN Routing</div>
-              <div id="diag-vpn-status" class="diag-health-val">Direct Wi-Fi</div>
-              <div id="diag-vpn-sub" class="diag-health-sub">Physical adapter active</div>
-            </div>
+      <!-- 2. Interface Preferences -->
+      <div class="card" style="margin-bottom: 18px;">
+        <div class="card-header">
+          <span class="card-title">Interface &amp; Display</span>
+        </div>
+        <div class="info-list">
+          <div class="info-row">
+            <span class="label">HUD Metric</span>
+            <select id="setting-hud-mode" class="input-select" onchange="updateSetting('hud_display_mode', this.value); updateHudMode(this.value);">
+              <option value="speeds_total">Total Speeds (↓ / ↑)</option>
+              <option value="sigma_today">Sigma Today Usage (Σ 0.00 GB)</option>
+              <option value="speeds_split">Split Speeds (Direct vs VPN)</option>
+              <option value="today_total">Today Total Usage</option>
+              <option value="full_compact">Full Compact</option>
+            </select>
           </div>
-
-          <div class="settings-group-title" style="margin-top: 10px; margin-bottom: 10px;">
-            🛠️ 1-Click Diagnostic Repair Utilities
+          <div class="info-row">
+            <span class="label">HUD Opacity</span>
+            <select id="setting-hud-opacity" class="input-select" onchange="updateSetting('hud_opacity', parseInt(this.value)); updateHudOpacity(parseInt(this.value));">
+              <option value="100">100% Solid</option>
+              <option value="90">90% Glass</option>
+              <option value="75">75% Translucent</option>
+              <option value="60">60% Subtle</option>
+            </select>
           </div>
-          <div class="tools-grid">
-            <div class="tool-card">
-              <div class="tool-info">
-                <strong>Flush DNS Resolver Cache</strong>
-                <p>Invalidates cached DNS hostnames. Fixes website unreachable errors after VPN/proxy use.</p>
-              </div>
-              <button class="btn-action" onclick="executeTool('flush-dns', this)">Flush DNS</button>
-            </div>
-
-            <div class="tool-card">
-              <div class="tool-info">
-                <strong>Reset Lingering System Proxy</strong>
-                <p>Clears dead localhost proxy redirects left by crashed VPN/proxy clients (Throne, Clash, v2ray).</p>
-              </div>
-              <button class="btn-action" onclick="executeTool('reset-proxy', this)">Reset Proxy</button>
-            </div>
-
-            <div class="tool-card">
-              <div class="tool-info">
-                <strong>Renew Network Connection (DHCP)</strong>
-                <p>Renews IP lease and re-synchronizes adapter connection and default gateway routes.</p>
-              </div>
-              <button class="btn-action" onclick="executeTool('renew-dhcp', this)">Renew DHCP</button>
-            </div>
+          <div class="info-row" id="row-gnome-ext" style="display: none;">
+            <span class="label">GNOME Top Bar Extension</span>
+            <label class="switch">
+              <input type="checkbox" id="setting-gnome-ext" onchange="updateSetting('gnome_ext_enabled', this.checked)">
+              <span class="slider"></span>
+            </label>
           </div>
         </div>
+      </div>
 
-        <!-- TAB 2: Privacy & Accounting Preferences -->
-        <div id="tab-content-preferences" class="modal-tab-content" style="display: none;">
-          <div class="settings-group" style="border-bottom: none; padding-bottom: 0;">
-            <div class="settings-group-title">🛡️ Privacy &amp; Split Accounting Preferences</div>
-            
-            <div class="setting-row">
-              <div class="setting-info">
-                <strong>Mask IP Addresses (Privacy Mode)</strong>
-                <p>Hides public and local IP addresses across dashboard views.</p>
-              </div>
-              <label class="switch">
-                <input type="checkbox" id="setting-mask-ips" onchange="updateSetting('mask_ips', this.checked)">
-                <span class="slider"></span>
-              </label>
-            </div>
-
-            <div class="setting-row">
-              <div class="setting-info">
-                <strong>Exclusive Accounting Mode</strong>
-                <p>When VPN is active, direct traffic reads 0 B/s and counts 100% as VPN.</p>
-              </div>
-              <label class="switch">
-                <input type="checkbox" id="setting-exclusive" onchange="updateSetting('exclusive_mode', this.checked)">
-                <span class="slider"></span>
-              </label>
-            </div>
-
-            <div class="setting-row" id="row-autostart">
-              <div class="setting-info">
-                <strong>Launch on System Startup</strong>
-                <p>Starts NetSplit silently on user login.</p>
-              </div>
-              <label class="switch">
-                <input type="checkbox" id="setting-autostart" onchange="updateSetting('autostart', this.checked)">
-                <span class="slider"></span>
-              </label>
-            </div>
-
-            <div class="setting-row">
-              <div class="setting-info">
-                <strong>Minimize to Tray on Close</strong>
-                <p>Keep running in background notification tray when closing window.</p>
-              </div>
-              <label class="switch">
-                <input type="checkbox" id="setting-min-tray" onchange="updateSetting('minimize_to_tray', this.checked)">
-                <span class="slider"></span>
-              </label>
-            </div>
-
-            <div class="settings-group-title" style="margin-top: 24px;">📊 Desktop HUD &amp; GNOME Top Bar Telemetry</div>
-
-            <div class="setting-row">
-              <div class="setting-info">
-                <strong>GNOME Top Bar / Taskbar Metric</strong>
-                <p>Telemetry metric published live to the Linux top panel.</p>
-              </div>
-              <select id="setting-tray-mode" class="input-select" onchange="updateSetting('tray_display_mode', this.value)">
-                <option value="sigma_today">Sigma Today Usage (Σ 0.00 GB)</option>
-                <option value="speeds_total">Total Speeds (↓ / ↑)</option>
-                <option value="speeds_split">Split Speeds (Direct vs VPN)</option>
-                <option value="today_total">Today Total Usage</option>
-                <option value="today_split">Today Split Usage</option>
-                <option value="down_only">Download Speed Only</option>
-                <option value="up_only">Upload Speed Only</option>
-                <option value="full_compact">Full Compact (Speeds + Today)</option>
-                <option value="icon_only">Icon Only (No Text)</option>
-              </select>
-            </div>
-
-            <div class="setting-row">
-              <div class="setting-info">
-                <strong>Floating Desktop &amp; Web HUD</strong>
-                <p>Display floating telemetry pill widget on desktop and web.</p>
-              </div>
-              <label class="switch">
-                <input type="checkbox" id="setting-hud-enabled" onchange="updateSetting('hud_enabled', this.checked); toggleWebHud(this.checked);">
-                <span class="slider"></span>
-              </label>
-            </div>
-
-            <div class="setting-row">
-              <div class="setting-info">
-                <strong>HUD Display Metric</strong>
-                <p>Primary metric featured inside the floating HUD.</p>
-              </div>
-              <select id="setting-hud-mode" class="input-select" onchange="updateSetting('hud_display_mode', this.value); updateHudMode(this.value);">
-                <option value="sigma_today">Sigma Today Usage (Σ 0.00 GB)</option>
-                <option value="speeds_total">Total Speeds (↓ / ↑)</option>
-                <option value="speeds_split">Split Speeds (Direct vs VPN)</option>
-                <option value="today_total">Today Total Usage</option>
-                <option value="today_split">Today Split Usage</option>
-                <option value="down_only">Download Speed Only</option>
-                <option value="up_only">Upload Speed Only</option>
-                <option value="full_compact">Full Compact (Speeds + Today)</option>
-              </select>
-            </div>
-
-            <div class="setting-row">
-              <div class="setting-info">
-                <strong>HUD Opacity</strong>
-                <p>Glass transparency level of the floating HUD.</p>
-              </div>
-              <select id="setting-hud-opacity" class="input-select" onchange="updateSetting('hud_opacity', parseInt(this.value)); updateHudOpacity(parseInt(this.value));">
-                <option value="100">100% (Solid)</option>
-                <option value="90">90% (Standard Glass)</option>
-                <option value="75">75% (Translucent)</option>
-                <option value="60">60% (Subtle)</option>
-              </select>
-            </div>
-
-            <div class="setting-row" id="row-gnome-ext" style="display: none;">
-              <div class="setting-info">
-                <strong>GNOME Shell Top Bar Extension (Arch Linux)</strong>
-                <p id="gnome-ext-desc">Display live telemetry (Σ usage / speeds) on GNOME top panel.</p>
-              </div>
-              <label class="switch">
-                <input type="checkbox" id="setting-gnome-ext" onchange="updateSetting('gnome_ext_enabled', this.checked);">
-                <span class="slider"></span>
-              </label>
-            </div>
-
-            <div class="setting-row" id="row-gnome-ext-mode" style="display: none;">
-              <div class="setting-info">
-                <strong>Top Bar Extension Metric</strong>
-                <p>Choose metric featured on top panel (e.g. Σ 2.59 GB).</p>
-              </div>
-              <select id="setting-gnome-ext-mode" class="input-select" onchange="updateSetting('gnome_ext_display_mode', this.value);">
-                <option value="sigma_today">Sigma Today Usage (Σ 0.00 GB)</option>
-                <option value="speeds_total">Total Speeds (↓ / ↑)</option>
-                <option value="speeds_split">Split Speeds (Direct vs VPN)</option>
-                <option value="today_total">Today Total Usage</option>
-                <option value="today_split">Today Split Usage</option>
-                <option value="down_only">Download Speed Only</option>
-                <option value="up_only">Upload Speed Only</option>
-                <option value="full_compact">Full Compact (Speeds + Today)</option>
-              </select>
-            </div>
-          </div>
+      <!-- 3. Network Repair Tools -->
+      <div class="card" style="margin-bottom: 18px;">
+        <div class="card-header">
+          <span class="card-title">Network Diagnostics &amp; Repair</span>
         </div>
-
-        <!-- TAB 3: Data Maintenance -->
-        <div id="tab-content-data" class="modal-tab-content" style="display: none;">
-          <div class="settings-group" style="border-bottom: none; padding-bottom: 0;">
-            <div class="settings-group-title">📊 Data &amp; History Maintenance</div>
-            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 12px;">Manage local SQLite accounting records and reset counters.</p>
-            <div style="display: flex; gap: 12px; flex-wrap: wrap;">
-              <button class="btn-secondary" onclick="executeTool('reset-today', this)">Reset Today's Stats</button>
-              <button class="btn-danger" onclick="confirmClearHistory(this)">Clear All History</button>
-            </div>
-          </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
+          <button class="btn-action" onclick="executeTool('flush-dns', this)">Flush DNS</button>
+          <button class="btn-action" onclick="executeTool('reset-proxy', this)">Reset System Proxy</button>
+          <button class="btn-action" onclick="executeTool('renew-dhcp', this)">Renew DHCP Lease</button>
         </div>
+      </div>
 
-        <!-- TAB 4: About NetSplit -->
-        <div id="tab-content-about" class="modal-tab-content" style="display: none;">
-          <div class="settings-group" style="border-bottom: none; padding-bottom: 0;">
-            <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 14px;">
-              <img src="/static/netsplit.svg" width="48" height="48" style="border-radius: 12px; box-shadow: 0 4px 14px rgba(56, 189, 248, 0.35);" alt="NetSplit" />
-              <div>
-                <h3 style="font-size: 1.15rem; font-weight: 700;">NetSplit</h3>
-                <p style="font-size: 0.82rem; color: var(--text-muted);">Real-Time Network Speed &amp; VPN / Proxy Split Accounting</p>
-              </div>
-            </div>
-            <div class="info-row">
-              <span class="label">Version</span>
-              <span class="val" id="about-version">v1.6.0</span>
-            </div>
-            <div class="info-row">
-              <span class="label">Operating System</span>
-              <span class="val" id="about-os">Detected dynamically</span>
-            </div>
-            <div class="info-row">
-              <span class="label">Source Code</span>
-              <span class="val"><a href="https://github.com/ChavinduJayakody/NetSplit" target="_blank" style="color: #38bdf8; text-decoration: none;">GitHub Repository ↗</a></span>
-            </div>
+      <!-- 4. Data Maintenance -->
+      <div class="card" style="margin-bottom: 18px;">
+        <div class="card-header">
+          <span class="card-title">Data Maintenance</span>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
+          <button class="btn-action" onclick="executeTool('reset-today', this)">Reset Today's Stats</button>
+          <button class="btn-danger" onclick="confirmClearHistory(this)">Clear All History</button>
+        </div>
+      </div>
+
+      <!-- 5. About NetSplit -->
+      <div class="card">
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <img src="/static/netsplit.svg" width="44" height="44" style="border-radius: 10px;" alt="NetSplit" />
+          <div>
+            <h3 style="font-size: 1.1rem; font-weight: 700;">NetSplit</h3>
+            <p style="font-size: 0.82rem; color: var(--text-muted);" id="about-version">v1.6.0</p>
           </div>
         </div>
       </div>
@@ -1278,21 +1266,21 @@
   <div id="web-floating-hud" class="web-floating-hud" style="display: none;">
     <div class="hud-handle" id="hud-drag-handle">
       <span class="hud-dot" id="hud-web-dot"></span>
-      <div class="hud-text-group" id="hud-text-container" onclick="cycleHudMode()" title="Click to cycle display metric">
+      <div class="hud-text-group" id="hud-text-container" onclick="cycleHudMode()" title="Click to cycle metric">
         <div class="hud-primary-text" id="hud-web-primary">↓ 0 B/s   ↑ 0 B/s</div>
         <div class="hud-sub-text" id="hud-web-sub">Today: 0 B • Direct</div>
       </div>
-      <button class="hud-close-btn" onclick="toggleWebHud(false)" title="Hide Floating HUD">✕</button>
+      <button class="hud-close-btn" onclick="toggleWebHud(false)" title="Hide HUD">✕</button>
     </div>
   </div>
 
-  <div id="copy-toast" class="copy-toast" style="display: none;"></div>
+  <div id="toast" class="toast" style="display: none;"></div>
 
   <script>
-    // Setup Chart.js
+    // --- Chart.js Setup ---
     const ctx = document.getElementById('speedChart').getContext('2d');
     const maxDataPoints = 30;
-    const initialLabels = Array.from({length: maxDataPoints}, (_, i) => `${maxDataPoints - i}s ago`);
+    const initialLabels = Array.from({length: maxDataPoints}, (_, i) => `${maxDataPoints - i}s`);
 
     const speedChart = new Chart(ctx, {
       type: 'line',
@@ -1300,7 +1288,7 @@
         labels: initialLabels,
         datasets: [
           {
-            label: 'Normal Down (MB/s)',
+            label: 'Direct (MB/s)',
             data: Array(maxDataPoints).fill(0),
             borderColor: '#38bdf8',
             backgroundColor: 'rgba(56, 189, 248, 0.1)',
@@ -1310,17 +1298,17 @@
             pointRadius: 0
           },
           {
-            label: 'VPN Down (MB/s)',
+            label: 'VPN (MB/s)',
             data: Array(maxDataPoints).fill(0),
             borderColor: '#c084fc',
-            backgroundColor: 'rgba(192, 132, 252, 0.15)',
+            backgroundColor: 'rgba(192, 132, 252, 0.12)',
             fill: true,
             tension: 0.35,
             borderWidth: 2,
             pointRadius: 0
           },
           {
-            label: 'Total Down (MB/s)',
+            label: 'Total (MB/s)',
             data: Array(maxDataPoints).fill(0),
             borderColor: '#4ade80',
             borderDash: [4, 4],
@@ -1333,11 +1321,9 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: { duration: 400 },
+        animation: { duration: 300 },
         scales: {
-          x: {
-            display: false
-          },
+          x: { display: false },
           y: {
             beginAtZero: true,
             grid: { color: 'rgba(255, 255, 255, 0.05)' },
@@ -1347,9 +1333,7 @@
             }
           }
         },
-        plugins: {
-          legend: { display: false }
-        }
+        plugins: { legend: { display: false } }
       }
     });
 
@@ -1365,72 +1349,56 @@
       return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
     }
 
+    // --- Tab Navigation Controller ---
+    const allTabs = ['monitor', 'network', 'apps', 'speed', 'history', 'settings'];
+    function switchTab(tabId) {
+      allTabs.forEach(t => {
+        const btn = document.getElementById('nav-' + t);
+        const panel = document.getElementById('view-' + t);
+        if (btn) btn.classList.toggle('active', t === tabId);
+        if (panel) panel.classList.toggle('active', t === tabId);
+      });
+      if (tabId === 'history') {
+        fetchHistory();
+      }
+    }
+
+    // --- Dashboard Real-Time Updates ---
     function updateDashboard(snap) {
       if (!snap) return;
 
-      const spd = snap.speeds;
-      const today = snap.today_usage;
-      const wifi = snap.wifi;
-      const ping = snap.ping;
-      const throne = snap.throne;
+      const spd = snap.speeds || {};
+      const today = snap.today_usage || {};
+      const wifi = snap.wifi || {};
+      const ping = snap.ping || {};
+      const throne = snap.throne || snap.vpn || {};
+      const procs = snap.processes || [];
 
       // 1. Speeds
-      document.getElementById('speed-normal-down').textContent = spd.normal_down_str;
-      document.getElementById('speed-normal-sub-down').textContent = spd.normal_down_str;
-      document.getElementById('speed-normal-sub-up').textContent = spd.normal_up_str;
+      document.getElementById('speed-normal-down').textContent = spd.normal_down_str || "0.0 KB/s";
+      document.getElementById('speed-normal-sub-down').textContent = spd.normal_down_str || "0.0 KB/s";
+      document.getElementById('speed-normal-sub-up').textContent = spd.normal_up_str || "0.0 KB/s";
 
-      document.getElementById('speed-vpn-down').textContent = spd.vpn_down_str;
-      document.getElementById('speed-vpn-sub-down').textContent = spd.vpn_down_str;
-      document.getElementById('speed-vpn-sub-up').textContent = spd.vpn_up_str;
+      document.getElementById('speed-vpn-down').textContent = spd.vpn_down_str || "0.0 KB/s";
+      document.getElementById('speed-vpn-sub-down').textContent = spd.vpn_down_str || "0.0 KB/s";
+      document.getElementById('speed-vpn-sub-up').textContent = spd.vpn_up_str || "0.0 KB/s";
 
-      document.getElementById('speed-total-down').textContent = spd.total_down_str;
-      document.getElementById('speed-total-sub-down').textContent = spd.total_down_str;
-      document.getElementById('speed-total-sub-up').textContent = spd.total_up_str;
+      document.getElementById('speed-total-down').textContent = spd.total_down_str || "0.0 KB/s";
+      document.getElementById('speed-total-sub-down').textContent = spd.total_down_str || "0.0 KB/s";
+      document.getElementById('speed-total-sub-up').textContent = spd.total_up_str || "0.0 KB/s";
 
-      // Today stats
-      document.getElementById('today-normal-val').textContent = today.normal_total_str;
-      document.getElementById('today-vpn-val').textContent = today.vpn_total_str;
-      document.getElementById('today-total-val').textContent = today.grand_total_str;
+      // Today
+      document.getElementById('today-normal-val').textContent = today.normal_total_str || "0.0 MB";
+      document.getElementById('today-vpn-val').textContent = today.vpn_total_str || "0.0 MB";
+      document.getElementById('today-total-val').textContent = today.grand_total_str || "0.0 MB";
 
-      // 2. Dynamic Titles & Badges (LAN vs Wi-Fi)
+      // 2. Wi-Fi / LAN Badges
       const isLan = (wifi.conn_type === 'LAN');
-
-      const directTitle = document.getElementById('card-direct-title');
-      if (directTitle) {
-        directTitle.textContent = isLan ? "Direct LAN" : "Direct Wi-Fi";
-      }
-      const totalTitle = document.getElementById('card-total-title');
-      if (totalTitle) {
-        totalTitle.textContent = isLan ? "Total Network (LAN)" : "Total Network (Wi-Fi)";
-      }
-
-      const wifiCardTitle = document.getElementById('card-wifi-title');
-      const wifiCardIcon = document.getElementById('card-wifi-icon');
-      if (wifiCardTitle) {
-        wifiCardTitle.textContent = isLan ? "Wired LAN & Diagnostics" : "Wi-Fi & Diagnostics";
-      }
-      if (wifiCardIcon) {
-        wifiCardIcon.textContent = isLan ? "🔌" : "📡";
-      }
-
-      const labelSsid = document.getElementById('label-ssid');
-      const labelSignal = document.getElementById('label-signal');
-      const labelRate = document.getElementById('label-rate');
-      const labelBand = document.getElementById('label-band');
-      if (labelSsid) labelSsid.textContent = isLan ? "Interface / Connection" : "SSID (Network)";
-      if (labelSignal) labelSignal.textContent = isLan ? "Cable / Link State" : "Signal Quality";
-      if (labelRate) labelRate.textContent = isLan ? "Port Link Speed" : "Link Bitrate";
-      if (labelBand) labelBand.textContent = isLan ? "Duplex / Specs" : "Band & Channel";
-
       const wifiBadge = document.getElementById('badge-wifi');
       const wifiSsidSpan = document.getElementById('wifi-ssid-badge');
       if (wifi.connected) {
         wifiBadge.className = "badge badge-vpn-active";
-        if (isLan) {
-          wifiSsidSpan.textContent = "LAN: " + (wifi.bitrate && wifi.bitrate !== "N/A" ? wifi.bitrate : "Connected");
-        } else {
-          wifiSsidSpan.textContent = wifi.ssid;
-        }
+        wifiSsidSpan.textContent = isLan ? ("LAN: " + (wifi.bitrate || "Connected")) : (wifi.ssid || "Connected");
       } else {
         wifiBadge.className = "badge badge-vpn-inactive";
         wifiSsidSpan.textContent = isLan ? "LAN Disconnected" : "Wi-Fi Disconnected";
@@ -1440,330 +1408,282 @@
       const vpnStatusSpan = document.getElementById('vpn-status-badge');
       if (throne.tun_active) {
         vpnBadge.className = "badge badge-vpn-active";
-        vpnStatusSpan.textContent = "VPN ACTIVE: " + (throne.active_profile || "Connected");
+        vpnStatusSpan.textContent = "VPN: " + (throne.active_profile || "Active");
       } else {
         vpnBadge.className = "badge badge-vpn-inactive";
-        vpnStatusSpan.textContent = "DIRECT ONLY";
+        vpnStatusSpan.textContent = "DIRECT";
       }
 
-      // 3. Wi-Fi & Diagnostics
-      document.getElementById('info-ssid').textContent = wifi.ssid || "--";
-      if (isLan) {
-        document.getElementById('info-signal').textContent = wifi.connected ? (wifi.bars + " (Connected)") : "Disconnected";
-        document.getElementById('info-rate').textContent = wifi.bitrate || "--";
-        document.getElementById('info-band').textContent = wifi.band || "--";
+      // Titles
+      const directTitle = document.getElementById('card-direct-title');
+      if (directTitle) directTitle.textContent = isLan ? "Direct LAN" : "Direct Wi-Fi";
+      const totalTitle = document.getElementById('card-total-title');
+      if (totalTitle) totalTitle.textContent = isLan ? "Total Network (LAN)" : "Total Network (Wi-Fi)";
+
+      // 3. Network View Details
+      document.getElementById('info-ssid').textContent = wifi.ssid || (isLan ? "Wired Ethernet" : "--");
+      document.getElementById('info-signal').textContent = isLan ? (wifi.connected ? "Connected" : "Disconnected") : ((wifi.signal || 0) + "% " + (wifi.bars || ""));
+      document.getElementById('info-rate').textContent = wifi.bitrate || "--";
+      document.getElementById('info-band').textContent = wifi.band ? (wifi.band + (wifi.channel ? " (Ch " + wifi.channel + ")" : "")) : "--";
+
+      const gwEl = document.getElementById('info-ping-gw');
+      const inetEl = document.getElementById('info-ping-inet');
+      if (ping.gateway_ping_ms !== null && ping.gateway_ping_ms !== undefined) {
+        gwEl.textContent = ping.gateway_ping_ms.toFixed(1) + " ms";
+        gwEl.style.color = ping.gateway_ping_ms < 30 ? "var(--accent-total)" : (ping.gateway_ping_ms < 80 ? "var(--accent-warning)" : "var(--accent-danger)");
       } else {
-        document.getElementById('info-signal').textContent = (wifi.signal || 0) + "% " + (wifi.bars || "");
-        document.getElementById('info-rate').textContent = wifi.bitrate || "--";
-        document.getElementById('info-band').textContent = (wifi.band || "--") + " (Ch " + (wifi.channel || "--") + ")";
+        gwEl.textContent = "--";
+        gwEl.style.color = "";
       }
 
-      // Ping with latency status color coding
-      const gwPingEl = document.getElementById('info-ping-gw');
-      const inetPingEl = document.getElementById('info-ping-inet');
-      if (ping.gateway_ping_ms !== null) {
-        gwPingEl.textContent = ping.gateway_ping_ms.toFixed(1) + " ms";
-        gwPingEl.style.color = ping.gateway_ping_ms < 30 ? "var(--accent-total)" : (ping.gateway_ping_ms < 80 ? "var(--accent-warning)" : "var(--accent-danger)");
+      if (ping.internet_ping_ms !== null && ping.internet_ping_ms !== undefined) {
+        inetEl.textContent = ping.internet_ping_ms.toFixed(1) + " ms";
+        inetEl.style.color = ping.internet_ping_ms < 40 ? "var(--accent-total)" : (ping.internet_ping_ms < 100 ? "var(--accent-warning)" : "var(--accent-danger)");
       } else {
-        gwPingEl.textContent = "--";
-        gwPingEl.style.color = "";
-      }
-
-      if (ping.internet_ping_ms !== null) {
-        inetPingEl.textContent = ping.internet_ping_ms.toFixed(1) + " ms";
-        inetPingEl.style.color = ping.internet_ping_ms < 40 ? "var(--accent-total)" : (ping.internet_ping_ms < 100 ? "var(--accent-warning)" : "var(--accent-danger)");
-      } else {
-        inetPingEl.textContent = "--";
-        inetPingEl.style.color = "";
+        inetEl.textContent = "--";
+        inetEl.style.color = "";
       }
 
       document.getElementById('info-local-ip').textContent = wifi.local_ip || "--";
       document.getElementById('info-public-ip').textContent = ping.public_ip || "--";
 
-      // 4. Throne & Apps
-      document.getElementById('throne-state-text').textContent = throne.status_text || "N/A";
+      document.getElementById('throne-state-text').textContent = throne.status_text || (throne.tun_active ? "Connected" : "Disconnected");
       document.getElementById('throne-profile').textContent = (throne.active_profile || "None") + (throne.profile_type ? " (" + throne.profile_type + ")" : "");
       document.getElementById('throne-tun-iface').textContent = throne.tun_interface || "Inactive";
 
-      const tableBody = document.getElementById('app-table-body');
+      // Routed apps table
+      const appTbody = document.getElementById('app-table-body');
       if (throne.top_apps && throne.top_apps.length > 0) {
-        tableBody.innerHTML = throne.top_apps.map(app => {
-          const valStr = app.is_connections ? `${app.total_bytes} conns` : formatBytes(app.total_bytes);
-          return `
-            <tr>
-              <td style="color: #e6edf3; font-weight: 500;">${app.process}</td>
-              <td style="text-align: right; color: var(--accent-vpn); font-weight: 600;">${valStr}</td>
-            </tr>
-          `;
-        }).join('');
+        appTbody.innerHTML = throne.top_apps.map(app => `
+          <tr>
+            <td style="color: #e6edf3; font-weight: 600;">${app.process}</td>
+            <td style="text-align: right; color: var(--accent-vpn); font-weight: 700;">${app.is_connections ? `${app.total_bytes} conns` : formatBytes(app.total_bytes)}</td>
+          </tr>
+        `).join('');
       } else {
-        tableBody.innerHTML = '<tr><td colspan="2" style="color: var(--text-muted);">No app data yet</td></tr>';
+        appTbody.innerHTML = '<tr><td colspan="2" style="color: var(--text-muted);">No app data yet</td></tr>';
       }
 
-      // 5. Update Real-Time Chart
-      const normMB = formatBpsToMB(spd.normal_down_bps);
-      const vpnMB = formatBpsToMB(spd.vpn_down_bps);
-      const totMB = formatBpsToMB(spd.total_down_bps);
+      // 4. Process Telemetry View
+      updateProcessTelemetry(procs);
+
+      // 5. Update Live Chart
+      const normMB = formatBpsToMB(spd.normal_down_bps || 0);
+      const vpnMB = formatBpsToMB(spd.vpn_down_bps || 0);
+      const totMB = formatBpsToMB(spd.total_down_bps || 0);
 
       speedChart.data.datasets[0].data.shift();
       speedChart.data.datasets[0].data.push(normMB);
-
       speedChart.data.datasets[1].data.shift();
       speedChart.data.datasets[1].data.push(vpnMB);
-
       speedChart.data.datasets[2].data.shift();
       speedChart.data.datasets[2].data.push(totMB);
-
       speedChart.update('none');
-
-      // Update Real-Time Diagnostics Health Cards inside Modal
-      const diagGwStatus = document.getElementById('diag-gw-status');
-      const diagGwSub = document.getElementById('diag-gw-sub');
-      if (diagGwStatus) {
-        if (ping.gateway_ping_ms !== null) {
-          diagGwStatus.textContent = "Online (" + ping.gateway_ping_ms.toFixed(1) + " ms)";
-          diagGwStatus.style.color = "var(--accent-total)";
-        } else {
-          diagGwStatus.textContent = "Unreachable";
-          diagGwStatus.style.color = "var(--accent-danger)";
-        }
-        if (diagGwSub) diagGwSub.textContent = "Router: " + (wifi.gateway_ip || (wifi.connected ? "Reachable" : "Disconnected"));
-      }
-
-      const diagDnsStatus = document.getElementById('diag-dns-status');
-      const diagDnsSub = document.getElementById('diag-dns-sub');
-      if (diagDnsStatus) {
-        if (ping.internet_ping_ms !== null) {
-          diagDnsStatus.textContent = "Resolving (" + ping.internet_ping_ms.toFixed(1) + " ms)";
-          diagDnsStatus.style.color = "var(--accent-total)";
-        } else {
-          diagDnsStatus.textContent = "Resolution Timeout";
-          diagDnsStatus.style.color = "var(--accent-danger)";
-        }
-        if (diagDnsSub) diagDnsSub.textContent = "Public IP: " + (ping.public_ip || "--");
-      }
-
-      const diagProxyStatus = document.getElementById('diag-proxy-status');
-      const diagProxySub = document.getElementById('diag-proxy-sub');
-      if (diagProxyStatus) {
-        if (throne.client_running) {
-          diagProxyStatus.textContent = "Client Active (" + (throne.active_profile || "Running") + ")";
-          diagProxyStatus.style.color = "var(--accent-vpn)";
-          if (diagProxySub) diagProxySub.textContent = "Proxy engine connected";
-        } else {
-          diagProxyStatus.textContent = "Direct (Clean)";
-          diagProxyStatus.style.color = "var(--accent-direct)";
-          if (diagProxySub) diagProxySub.textContent = "No dead proxy redirect";
-        }
-      }
-
-      const diagVpnStatus = document.getElementById('diag-vpn-status');
-      const diagVpnSub = document.getElementById('diag-vpn-sub');
-      if (diagVpnStatus) {
-        if (throne.tun_active) {
-          diagVpnStatus.textContent = "Tunnel Active (" + throne.tun_interface + ")";
-          diagVpnStatus.style.color = "var(--accent-vpn)";
-          if (diagVpnSub) diagVpnSub.textContent = "Routing via encrypted tunnel";
-        } else {
-          diagVpnStatus.textContent = isLan ? "Direct LAN" : "Direct Wi-Fi";
-          diagVpnStatus.style.color = "var(--accent-total)";
-          if (diagVpnSub) diagVpnSub.textContent = "Physical adapter active";
-        }
-      }
 
       window._latestSnapshot = snap;
       updateWebHud(snap);
     }
 
-    // Connect to SSE stream
-    function initEvents() {
-      const evtSource = new EventSource('/api/stream');
-      evtSource.onmessage = function(event) {
-        try {
-          const snap = JSON.parse(event.data);
-          updateDashboard(snap);
-        } catch(e) {
-          console.error("SSE parse error", e);
-        }
-      };
-      evtSource.onerror = function(err) {
-        console.warn("SSE error, falling back to polling", err);
-        evtSource.close();
-        setInterval(fetchStats, 1000);
-      };
-    }
+    // --- Process Telemetry View Render ---
+    function updateProcessTelemetry(procs) {
+      const activeBadge = document.getElementById('proc-active-badge');
+      const aggDownEl = document.getElementById('proc-agg-down');
+      const aggUpEl = document.getElementById('proc-agg-up');
+      const aggTotEl = document.getElementById('proc-agg-total');
+      const tbody = document.getElementById('proc-telemetry-body');
 
-    function fetchStats() {
-      fetch('/api/stats')
-        .then(r => r.json())
-        .then(updateDashboard)
-        .catch(console.error);
-    }
+      if (!procs || procs.length === 0) {
+        if (activeBadge) activeBadge.textContent = "0 Apps Active";
+        if (aggDownEl) aggDownEl.textContent = "0 B/s";
+        if (aggUpEl) aggUpEl.textContent = "0 B/s";
+        if (aggTotEl) aggTotEl.textContent = "0 B/s";
+        if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">Monitoring system network socket activity...</td></tr>';
+        return;
+      }
 
-    // --- Options Menu & Modal Navigation Logic ---
-    function openTroubleshoot() {
-      closeOptionsMenu();
-      openSettings('troubleshoot');
-    }
-
-    function openSettings(activeTab = 'preferences') {
-      closeOptionsMenu();
-      document.getElementById('modal-settings').style.display = 'flex';
-      switchModalTab(activeTab);
-      hideAlert();
-      fetchSettings();
-    }
-
-    function closeSettings() {
-      document.getElementById('modal-settings').style.display = 'none';
-      closeOptionsMenu();
-    }
-
-    function switchModalTab(tabKey) {
-      const tabs = ['troubleshoot', 'preferences', 'data', 'about'];
-      tabs.forEach(t => {
-        const btn = document.getElementById('tab-btn-' + t);
-        const content = document.getElementById('tab-content-' + t);
-        if (btn) btn.classList.toggle('active', t === tabKey);
-        if (content) content.style.display = (t === tabKey) ? 'block' : 'none';
+      let sumDown = 0;
+      let sumUp = 0;
+      procs.forEach(p => {
+        sumDown += (p.down_rate || 0);
+        sumUp += (p.up_rate || 0);
       });
 
-      const icon = document.getElementById('modal-header-icon');
-      const title = document.getElementById('modal-header-title');
-      const subtitle = document.getElementById('modal-header-subtitle');
-      if (tabKey === 'troubleshoot') {
-        if (icon) icon.textContent = '🛠️';
-        if (title) title.textContent = 'Network Troubleshooting & Diagnostics';
-        if (subtitle) subtitle.textContent = 'Live health diagnostics and 1-click network repair actions';
-      } else if (tabKey === 'preferences') {
-        if (icon) icon.textContent = '⚙️';
-        if (title) title.textContent = 'Preferences & Settings';
-        if (subtitle) subtitle.textContent = 'Configure privacy, launch options, and accounting behavior';
-      } else if (tabKey === 'data') {
-        if (icon) icon.textContent = '📊';
-        if (title) title.textContent = 'Data & History Maintenance';
-        if (subtitle) subtitle.textContent = 'Reset session accumulators or clear SQLite records';
-      } else if (tabKey === 'about') {
-        if (icon) icon.textContent = 'ℹ️';
-        if (title) title.textContent = 'About NetSplit';
-        if (subtitle) subtitle.textContent = 'Cross-platform traffic accounting application';
+      if (activeBadge) activeBadge.textContent = `${procs.length} Apps Active`;
+      if (aggDownEl) aggDownEl.textContent = formatBytes(sumDown) + "/s";
+      if (aggUpEl) aggUpEl.textContent = formatBytes(sumUp) + "/s";
+      if (aggTotEl) aggTotEl.textContent = formatBytes(sumDown + sumUp) + "/s";
+
+      if (tbody) {
+        tbody.innerHTML = procs.map(p => {
+          const pidsStr = p.pids && p.pids.length > 0 ? p.pids.slice(0, 3).join(', ') : '';
+          return `
+            <tr>
+              <td>
+                <div class="proc-name-cell">
+                  <span>${p.name}</span>
+                  ${pidsStr ? `<span class="proc-pid-chip">PID ${pidsStr}</span>` : ''}
+                </div>
+              </td>
+              <td style="text-align: center; color: var(--text-muted); font-size: 0.8rem;">
+                ${p.conns || 0}
+              </td>
+              <td style="text-align: right; color: var(--accent-direct); font-weight: 700;">
+                ${p.down_rate_str || '0 B/s'}
+              </td>
+              <td style="text-align: right; color: var(--accent-vpn); font-weight: 700;">
+                ${p.up_rate_str || '0 B/s'}
+              </td>
+              <td style="text-align: right; color: var(--text-main); font-weight: 700;">
+                ${p.total_str || formatBytes(p.total_bytes || 0)}
+              </td>
+            </tr>
+          `;
+        }).join('');
       }
     }
 
-    function toggleOptionsMenu(e) {
-      if (e) e.stopPropagation();
-      const menu = document.getElementById('options-menu');
-      if (menu) {
-        menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-      }
+    // --- Built-In Speed Benchmark Controller ---
+    let benchmarkTimer = null;
+    function startSpeedBenchmark() {
+      const btn = document.getElementById('btn-start-bench');
+      btn.disabled = true;
+      btn.innerHTML = 'Testing...';
+
+      fetch('/api/benchmark/start', { method: 'POST' })
+        .then(r => r.json())
+        .then(res => {
+          showToast(res.message || "Benchmark started");
+          if (!benchmarkTimer) {
+            benchmarkTimer = setInterval(pollBenchmarkStatus, 250);
+          }
+        })
+        .catch(err => {
+          btn.disabled = false;
+          btn.innerHTML = 'Start Test';
+          showToast("Failed to start benchmark: " + err);
+        });
     }
 
-    function closeOptionsMenu() {
-      const menu = document.getElementById('options-menu');
-      if (menu) menu.style.display = 'none';
+    function pollBenchmarkStatus() {
+      fetch('/api/benchmark/status')
+        .then(r => r.json())
+        .then(data => {
+          if (!data) return;
+
+          // Progress & Labels
+          const pct = Math.round((data.progress || 0) * 100);
+          document.getElementById('bench-percent-label').textContent = pct + '%';
+          document.getElementById('bench-progress-bar').style.width = pct + '%';
+          document.getElementById('bench-status-label').textContent = data.status || 'Testing...';
+
+          // Meta
+          document.getElementById('bench-client-isp').textContent = data.client_isp || 'Detecting Provider...';
+          document.getElementById('bench-client-loc').textContent = 'Location: ' + (data.client_location || 'Detecting...');
+          document.getElementById('bench-server-name').textContent = data.server_name || 'Cloudflare Global Anycast Edge';
+          document.getElementById('bench-server-loc').textContent = 'Location: ' + (data.server_location || 'Optimal Server PoP') + (data.server_colo ? ` [${data.server_colo}]` : '');
+
+          // Gauges
+          document.getElementById('bench-val-dl').textContent = data.download_speed_mbps ? data.download_speed_mbps.toFixed(1) + ' Mbps' : (data.live_speed_mbps ? data.live_speed_mbps.toFixed(1) + ' Mbps' : '--');
+          document.getElementById('bench-sub-dl').textContent = data.download_ping ? `Loaded: ${data.download_ping.toFixed(1)} ms` : 'Loaded Latency: --';
+
+          document.getElementById('bench-val-ul').textContent = data.upload_speed_mbps ? data.upload_speed_mbps.toFixed(1) + ' Mbps' : '--';
+          document.getElementById('bench-sub-ul').textContent = data.upload_ping ? `Loaded: ${data.upload_ping.toFixed(1)} ms` : 'Loaded Latency: --';
+
+          document.getElementById('bench-val-ping').textContent = data.idle_ping ? data.idle_ping.toFixed(1) + ' ms' : '--';
+          document.getElementById('bench-sub-ping').textContent = data.idle_jitter ? `Jitter: ${data.idle_jitter.toFixed(1)} ms` : 'Jitter: --';
+
+          // Bufferbloat details
+          document.getElementById('bench-detail-idle').textContent = data.idle_ping ? `${data.idle_ping.toFixed(1)} ms (Jitter: ${data.idle_jitter.toFixed(1)} ms)` : '--';
+          const dlBloat = data.download_ping && data.idle_ping ? (data.download_ping - data.idle_ping).toFixed(1) : null;
+          document.getElementById('bench-detail-dl-bloat').textContent = dlBloat !== null ? `+${dlBloat} ms (${data.download_ping.toFixed(1)} ms loaded)` : '--';
+          const ulBloat = data.upload_ping && data.idle_ping ? (data.upload_ping - data.idle_ping).toFixed(1) : null;
+          document.getElementById('bench-detail-ul-bloat').textContent = ulBloat !== null ? `+${ulBloat} ms (${data.upload_ping.toFixed(1)} ms loaded)` : '--';
+
+          // Grade
+          const gradeBadge = document.getElementById('bench-grade-badge');
+          const grade = data.bufferbloat_grade || '--';
+          gradeBadge.textContent = grade;
+          gradeBadge.className = 'grade-badge';
+          if (['A+', 'A'].includes(grade)) gradeBadge.classList.add('grade-badge-good');
+          else if (['B', 'C'].includes(grade)) gradeBadge.classList.add('grade-badge-fair');
+          else if (['D', 'F'].includes(grade)) gradeBadge.classList.add('grade-badge-poor');
+
+          document.getElementById('bench-detail-grade-desc').textContent = data.grade_description || 'Run benchmark to test';
+
+          // Completion check
+          if (data.stage === 'done' || data.stage === 'error' || data.progress >= 1.0) {
+            clearInterval(benchmarkTimer);
+            benchmarkTimer = null;
+            const btn = document.getElementById('btn-start-bench');
+            btn.disabled = false;
+            btn.innerHTML = '<svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg> Run Again';
+          }
+        })
+        .catch(err => {
+          console.warn("Poll benchmark error:", err);
+        });
     }
 
-    // Global click listener to close options dropdown
-    window.addEventListener('click', function(e) {
-      const dropdown = document.getElementById('options-menu');
-      const btn = document.getElementById('btn-options-open');
-      if (dropdown && dropdown.style.display === 'block') {
-        if (!dropdown.contains(e.target) && e.target !== btn) {
-          dropdown.style.display = 'none';
-        }
-      }
-    });
-
-    // Close on backdrop click or ESC key
-    window.addEventListener('click', function(e) {
-      const modal = document.getElementById('modal-settings');
-      if (e.target === modal) closeSettings();
-    });
-    window.addEventListener('keydown', function(e) {
-      if (e.key === 'Escape') closeSettings();
-    });
-
-    function showAlert(msg, type = 'success') {
-      const alertBox = document.getElementById('tool-alert');
-      alertBox.className = `tool-alert tool-alert-${type}`;
-      alertBox.textContent = (type === 'success' ? '✓ ' : (type === 'error' ? '✕ ' : 'ℹ ')) + msg;
-      alertBox.style.display = 'flex';
-    }
-
-    function hideAlert() {
-      const alertBox = document.getElementById('tool-alert');
-      alertBox.style.display = 'none';
-    }
+    // --- Quick Settings Tiles & Settings API ---
+    let currentSettings = {};
 
     function fetchSettings() {
       fetch('/api/settings')
         .then(r => r.json())
         .then(data => {
           if (!data) return;
-          const maskEl = document.getElementById('setting-mask-ips');
-          const exclEl = document.getElementById('setting-exclusive');
-          const autoEl = document.getElementById('setting-autostart');
-          const minEl = document.getElementById('setting-min-tray');
-          const autoRow = document.getElementById('row-autostart');
+          currentSettings = data;
+          updateTileUi('privacy', !!data.mask_ips);
+          updateTileUi('hud', !!data.hud_enabled);
+          updateTileUi('exclusive', !!data.exclusive_mode);
+          updateTileUi('autostart', !!data.autostart);
+          updateTileUi('tray', !!data.tray_enabled);
+
+          const hudMode = document.getElementById('setting-hud-mode');
+          if (hudMode && data.hud_display_mode) hudMode.value = data.hud_display_mode;
+          const hudOp = document.getElementById('setting-hud-opacity');
+          if (hudOp && data.hud_opacity) hudOp.value = String(data.hud_opacity);
+
+          const gnomeRow = document.getElementById('row-gnome-ext');
+          const gnomeSwitch = document.getElementById('setting-gnome-ext');
+          if (gnomeRow && data.gnome_ext_supported) {
+            gnomeRow.style.display = 'flex';
+            if (gnomeSwitch) gnomeSwitch.checked = !!data.gnome_ext_enabled;
+          }
+
           const verEl = document.getElementById('about-version');
-
-          const trayModeEl = document.getElementById('setting-tray-mode');
-          const hudEnEl = document.getElementById('setting-hud-enabled');
-          const hudModeEl = document.getElementById('setting-hud-mode');
-          const hudOpEl = document.getElementById('setting-hud-opacity');
-
-          if (maskEl) maskEl.checked = !!data.mask_ips;
-          if (exclEl) exclEl.checked = !!data.exclusive_mode;
-          if (minEl) minEl.checked = !!data.minimize_to_tray;
-          if (autoEl) autoEl.checked = !!data.autostart;
-          if (autoRow) autoRow.style.display = data.autostart_supported ? 'flex' : 'none';
           if (verEl && data.version) verEl.textContent = 'v' + data.version + (data.platform ? ` (${data.platform})` : '');
-
-          if (trayModeEl && data.tray_display_mode) trayModeEl.value = data.tray_display_mode;
-          if (hudEnEl) {
-            hudEnEl.checked = !!data.hud_enabled;
-            if (data.hud_enabled) {
-              const hud = document.getElementById('web-floating-hud');
-              if (hud) hud.style.display = 'block';
-              const toggleBtn = document.getElementById('btn-hud-toggle');
-              if (toggleBtn) {
-                toggleBtn.style.background = 'rgba(168, 85, 247, 0.4)';
-                toggleBtn.style.borderColor = '#c084fc';
-              }
-            }
-          }
-          if (hudModeEl && data.hud_display_mode) {
-            hudModeEl.value = data.hud_display_mode;
-            currentHudMode = data.hud_display_mode;
-          }
-          if (hudOpEl && data.hud_opacity) {
-            hudOpEl.value = String(data.hud_opacity);
-            updateHudOpacity(data.hud_opacity);
-          }
-
-          const gnomeExtRow = document.getElementById('row-gnome-ext');
-          const gnomeExtModeRow = document.getElementById('row-gnome-ext-mode');
-          const gnomeExtSwitch = document.getElementById('setting-gnome-ext');
-          const gnomeExtMode = document.getElementById('setting-gnome-ext-mode');
-          const gnomeExtDesc = document.getElementById('gnome-ext-desc');
-
-          if (gnomeExtRow && data.gnome_ext_supported) {
-            gnomeExtRow.style.display = 'flex';
-            if (gnomeExtModeRow) gnomeExtModeRow.style.display = 'flex';
-            if (gnomeExtSwitch) gnomeExtSwitch.checked = !!data.gnome_ext_enabled;
-            if (gnomeExtMode && data.gnome_ext_display_mode) gnomeExtMode.value = data.gnome_ext_display_mode;
-            if (gnomeExtDesc && data.is_arch_linux) {
-              gnomeExtDesc.textContent = 'Display live telemetry on GNOME top panel [Arch Linux Native].';
-            }
-          }
         })
-        .catch(err => {
-          console.warn("Failed to fetch settings:", err);
-        });
+        .catch(err => console.warn("Fetch settings failed:", err));
+    }
+
+    function updateTileUi(tileKey, isActive) {
+      const tile = document.getElementById('tile-' + tileKey);
+      const status = document.getElementById('tile-' + tileKey + '-status');
+      if (tile) tile.classList.toggle('active', isActive);
+      if (status) {
+        status.textContent = isActive ? "On" : "Off";
+        status.className = "quick-tile-status " + (isActive ? "status-on" : "status-off");
+      }
+    }
+
+    function toggleQuickTile(settingKey) {
+      const newVal = !currentSettings[settingKey];
+      currentSettings[settingKey] = newVal;
+
+      if (settingKey === 'mask_ips') updateTileUi('privacy', newVal);
+      else if (settingKey === 'hud_enabled') {
+        updateTileUi('hud', newVal);
+        toggleWebHud(newVal);
+      }
+      else if (settingKey === 'exclusive_mode') updateTileUi('exclusive', newVal);
+      else if (settingKey === 'autostart') updateTileUi('autostart', newVal);
+      else if (settingKey === 'tray_enabled') updateTileUi('tray', newVal);
+
+      updateSetting(settingKey, newVal);
     }
 
     function updateSetting(key, value) {
-      hideAlert();
       fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1771,26 +1691,96 @@
       })
       .then(r => r.json())
       .then(res => {
-        showAlert(res.message || "Setting saved.", "success");
+        showToast(res.message || "Setting saved");
       })
       .catch(err => {
-        showAlert("Failed to update setting.", "error");
+        showToast("Error updating setting");
       });
+    }
+
+    function executeQuickFlushDns() {
+      const status = document.getElementById('tile-dns-status');
+      const tile = document.getElementById('tile-dns');
+      if (status) status.textContent = "Flushing...";
+      if (tile) tile.classList.add('active');
+
+      fetch('/api/tools/flush-dns', { method: 'POST' })
+        .then(r => r.json())
+        .then(res => {
+          if (status) {
+            status.textContent = res.success ? "Flushed ✓" : "Failed";
+            status.className = "quick-tile-status " + (res.success ? "status-on" : "status-off");
+          }
+          showToast(res.message || "DNS Flushed");
+          setTimeout(() => {
+            if (status) {
+              status.textContent = "Ready";
+              status.className = "quick-tile-status status-action";
+            }
+            if (tile) tile.classList.remove('active');
+          }, 2000);
+        })
+        .catch(err => {
+          if (status) status.textContent = "Error";
+          showToast("DNS flush failed");
+        });
+    }
+
+    function executeTool(toolEndpoint, btn) {
+      const origText = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Running...";
+
+      fetch('/api/tools/' + toolEndpoint, { method: 'POST' })
+        .then(r => r.json())
+        .then(res => {
+          btn.disabled = false;
+          btn.textContent = origText;
+          showToast(res.message || "Action completed");
+        })
+        .catch(err => {
+          btn.disabled = false;
+          btn.textContent = origText;
+          showToast("Action failed: " + err);
+        });
+    }
+
+    function confirmClearHistory(btn) {
+      if (confirm("Are you sure you want to permanently erase all traffic history?")) {
+        executeTool('clear-history', btn);
+      }
+    }
+
+    // --- History Fetch & Display ---
+    function fetchHistory() {
+      fetch('/api/history')
+        .then(r => r.json())
+        .then(data => {
+          const list = document.getElementById('history-daily-list');
+          if (!list) return;
+          const daily = data.daily || [];
+          if (daily.length === 0) {
+            list.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 20px;">No historical records yet.</div>';
+            return;
+          }
+          list.innerHTML = daily.map(d => `
+            <div class="info-row">
+              <span class="label">📅 ${d.date}</span>
+              <span class="val">
+                <span style="color: var(--accent-direct);">${formatBytes(d.normal_bytes)}</span>
+                ${d.vpn_bytes > 0 ? ` + <span style="color: var(--accent-vpn);">${formatBytes(d.vpn_bytes)} VPN</span>` : ''}
+                = <strong style="color: var(--accent-total);">${formatBytes(d.total_bytes)}</strong>
+              </span>
+            </div>
+          `).join('');
+        })
+        .catch(err => console.warn("Failed to fetch history:", err));
     }
 
     // --- Floating HUD Widget Controller ---
     let currentHudMode = 'speeds_total';
     let currentHudOpacity = 90;
-    const hudModesList = [
-      'sigma_today',
-      'speeds_total',
-      'speeds_split',
-      'today_total',
-      'today_split',
-      'down_only',
-      'up_only',
-      'full_compact'
-    ];
+    const hudModesList = ['speeds_total', 'sigma_today', 'speeds_split', 'today_total', 'full_compact'];
 
     function formatTelemetryJs(mode, snap) {
       if (!snap) return '--';
@@ -1809,12 +1799,6 @@
           return `DIR: ${spd.normal_down_str || '0 B/s'} | VPN: ${spd.vpn_down_str || '0 B/s'}`;
         case 'today_total':
           return isVpn ? `Today: ${today.grand_total_str || '0 B'} (VPN: ${today.vpn_total_str || '0 B'})` : `Today: ${today.grand_total_str || '0 B'}`;
-        case 'today_split':
-          return `Direct: ${today.normal_total_str || '0 B'} | VPN: ${today.vpn_total_str || '0 B'}`;
-        case 'down_only':
-          return `${vpnIcon}↓ ${spd.total_down_str || '0 B/s'}`;
-        case 'up_only':
-          return `↑ ${spd.total_up_str || '0 B/s'}`;
         case 'full_compact':
           return `${vpnIcon}↓${spd.total_down_str || '0 B/s'} ↑${spd.total_up_str || '0 B/s'} | Σ ${today.grand_total_str || '0 B'}`;
         default:
@@ -1842,10 +1826,7 @@
         else if (isVpn) dot.classList.add('vpn');
       }
 
-      if (prim) {
-        prim.textContent = formatTelemetryJs(currentHudMode, snap);
-      }
-
+      if (prim) prim.textContent = formatTelemetryJs(currentHudMode, snap);
       if (sub) {
         const today = snap.today_usage || {};
         if (isVpn) {
@@ -1866,18 +1847,10 @@
       hud.style.display = newState ? 'block' : 'none';
       const toggleBtn = document.getElementById('btn-hud-toggle');
       if (toggleBtn) {
-        if (newState) {
-          toggleBtn.style.background = 'rgba(168, 85, 247, 0.4)';
-          toggleBtn.style.borderColor = '#c084fc';
-        } else {
-          toggleBtn.style.background = '';
-          toggleBtn.style.borderColor = '';
-        }
+        toggleBtn.style.background = newState ? 'rgba(56, 189, 248, 0.3)' : '';
+        toggleBtn.style.borderColor = newState ? '#38bdf8' : '';
       }
-      const hudSwitch = document.getElementById('setting-hud-enabled');
-      if (hudSwitch && hudSwitch.checked !== newState) {
-        hudSwitch.checked = newState;
-      }
+      updateTileUi('hud', newState);
       updateSetting('hud_enabled', newState);
       if (newState && window._latestSnapshot) {
         updateWebHud(window._latestSnapshot);
@@ -1890,16 +1863,12 @@
       const select = document.getElementById('setting-hud-mode');
       if (select) select.value = currentHudMode;
       updateSetting('hud_display_mode', currentHudMode);
-      if (window._latestSnapshot) {
-        updateWebHud(window._latestSnapshot);
-      }
+      if (window._latestSnapshot) updateWebHud(window._latestSnapshot);
     }
 
     function updateHudMode(mode) {
       currentHudMode = mode;
-      if (window._latestSnapshot) {
-        updateWebHud(window._latestSnapshot);
-      }
+      if (window._latestSnapshot) updateWebHud(window._latestSnapshot);
     }
 
     function updateHudOpacity(op) {
@@ -1944,55 +1913,55 @@
       });
     }
 
-    function executeTool(toolEndpoint, btn) {
-      hideAlert();
-      const origText = btn.textContent;
-      btn.disabled = true;
-      btn.textContent = "Running...";
-
-      fetch('/api/tools/' + toolEndpoint, { method: 'POST' })
-        .then(r => r.json())
-        .then(res => {
-          btn.disabled = false;
-          btn.textContent = origText;
-          showAlert(res.message || "Action completed.", res.success ? "success" : "error");
-        })
-        .catch(err => {
-          btn.disabled = false;
-          btn.textContent = origText;
-          showAlert("Action execution failed: " + err, "error");
-        });
-    }
-
-    function confirmClearHistory(btn) {
-      if (confirm("Are you sure you want to permanently erase all network traffic history? This cannot be undone.")) {
-        executeTool('clear-history', btn);
-      }
-    }
-
-    // --- Click to Copy IP Helper ---
+    // --- Helpers: Copy IP & Toast ---
     function copyIpText(el) {
       const text = el.textContent.trim();
       if (!text || text === "--") return;
       navigator.clipboard.writeText(text).then(() => {
-        showCopyToast(`Copied ${text} to clipboard!`);
+        showToast(`Copied ${text}`);
       }).catch(() => {
-        showCopyToast(`Copied!`);
+        showToast("Copied");
       });
     }
 
-    function showCopyToast(msg) {
-      const toast = document.getElementById('copy-toast');
-      toast.textContent = msg;
-      toast.style.display = 'block';
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.style.display = 'flex';
       clearTimeout(window._toastTimeout);
       window._toastTimeout = setTimeout(() => {
-        toast.style.display = 'none';
-      }, 2200);
+        t.style.display = 'none';
+      }, 2400);
     }
 
+    // --- Initialization & Stream ---
+    function initEvents() {
+      const evtSource = new EventSource('/api/stream');
+      evtSource.onmessage = function(event) {
+        try {
+          const snap = JSON.parse(event.data);
+          updateDashboard(snap);
+        } catch(e) {
+          console.error("SSE parse error", e);
+        }
+      };
+      evtSource.onerror = function() {
+        evtSource.close();
+        setInterval(fetchStats, 1000);
+      };
+    }
+
+    function fetchStats() {
+      fetch('/api/stats')
+        .then(r => r.json())
+        .then(updateDashboard)
+        .catch(console.error);
+    }
+
+    // Kickoff
     initEvents();
     initWebHudDragging();
+    fetchSettings();
   </script>
 </body>
 </html>

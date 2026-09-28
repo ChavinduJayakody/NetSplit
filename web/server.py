@@ -14,6 +14,7 @@ from typing import Optional
 
 from core.collector import NetworkCollector
 from core.security import sanitize_static_path, mask_ip
+from core.benchmark import SpeedBenchmark
 
 
 import sys
@@ -37,6 +38,7 @@ class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
 
 class NetworkMonitorHandler(BaseHTTPRequestHandler):
     collector: Optional[NetworkCollector] = None
+    benchmark: Optional[SpeedBenchmark] = None
     static_dir: str = get_static_dir()
 
     def log_message(self, format, *args):
@@ -69,6 +71,8 @@ class NetworkMonitorHandler(BaseHTTPRequestHandler):
             self._serve_get_settings()
         elif clean_path == "/api/history":
             self._serve_history()
+        elif clean_path == "/api/benchmark/status":
+            self._serve_benchmark_status()
         elif clean_path == "/api/stream":
             self._serve_sse_stream()
         elif clean_path.startswith("/static/"):
@@ -91,6 +95,8 @@ class NetworkMonitorHandler(BaseHTTPRequestHandler):
 
         if clean_path == "/api/settings":
             self._handle_post_settings(payload)
+        elif clean_path == "/api/benchmark/start":
+            self._handle_benchmark_start()
         elif clean_path == "/api/tools/flush-dns":
             from core.network_tools import flush_dns
             res = flush_dns()
@@ -272,6 +278,22 @@ class NetworkMonitorHandler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             pass
 
+    def _serve_benchmark_status(self):
+        if not NetworkMonitorHandler.benchmark:
+            NetworkMonitorHandler.benchmark = SpeedBenchmark()
+        results = NetworkMonitorHandler.benchmark.get_results()
+        self._send_json_response(results)
+
+    def _handle_benchmark_start(self):
+        if not NetworkMonitorHandler.benchmark:
+            NetworkMonitorHandler.benchmark = SpeedBenchmark()
+        bm = NetworkMonitorHandler.benchmark
+        if bm.is_running:
+            self._send_json_response({"success": False, "message": "Speed benchmark already in progress.", "running": True})
+            return
+        bm.start_async()
+        self._send_json_response({"success": True, "message": "Speed benchmark started.", "running": True})
+
     def _serve_static(self, rel_path: str):
         safe_path = sanitize_static_path(self.static_dir, rel_path)
         if not safe_path or not os.path.exists(safe_path) or os.path.isdir(safe_path):
@@ -299,6 +321,8 @@ class NetworkMonitorHandler(BaseHTTPRequestHandler):
 
 def start_web_server(collector: NetworkCollector, host: str = "127.0.0.1", port: int = 8765):
     NetworkMonitorHandler.collector = collector
+    if not NetworkMonitorHandler.benchmark:
+        NetworkMonitorHandler.benchmark = SpeedBenchmark()
     server = ThreadedHTTPServer((host, port), NetworkMonitorHandler)
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
