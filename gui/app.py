@@ -32,6 +32,7 @@ except (ImportError, ValueError):
 
 
 
+from core.benchmark import SpeedBenchmark
 from core.collector import NetworkCollector, format_bytes, format_speed
 from core.tray import create_tray_controller, DISPLAY_MODES
 from core.autostart import is_autostart_supported, is_autostart_enabled, set_autostart
@@ -144,6 +145,46 @@ CSS_STYLES = """
     border-radius: 16px;
     padding: 14px 16px;
 }
+
+.bench-card {
+    background-color: alpha(@window_fg_color, 0.04);
+    border: 1px solid alpha(@borders, 0.4);
+    border-radius: 16px;
+    padding: 20px 24px;
+}
+
+.grade-badge-good {
+    background: rgba(46, 194, 89, 0.2);
+    color: #34d399;
+    border: 1px solid rgba(52, 211, 153, 0.4);
+    border-radius: 10px;
+    padding: 4px 14px;
+    font-weight: 800;
+    font-size: 16pt;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.grade-badge-warn {
+    background: rgba(229, 165, 10, 0.2);
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.4);
+    border-radius: 10px;
+    padding: 4px 14px;
+    font-weight: 800;
+    font-size: 16pt;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.grade-badge-bad {
+    background: rgba(224, 27, 36, 0.2);
+    color: #f87171;
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    border-radius: 10px;
+    padding: 4px 14px;
+    font-weight: 800;
+    font-size: 16pt;
+    font-family: 'JetBrains Mono', monospace;
+}
 """
 
 
@@ -232,8 +273,6 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Header bar
         header = Adw.HeaderBar()
-        title_widget = Adw.WindowTitle(title="NetSplit", subtitle="Direct Wi-Fi and VPN / Proxy Split")
-        header.set_title_widget(title_widget)
 
         # Status badge in header
         self.vpn_badge = Gtk.Label(label="Checking...")
@@ -256,54 +295,42 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Primary Options Menu on top
         menu = Gio.Menu()
-        menu.append("📊 Toggle Desktop HUD", "win.toggle_hud")
-        menu.append("🛠️ Troubleshoot Network...", "win.troubleshoot")
-        menu.append("⚙️ Preferences & Settings", "win.preferences")
+
+        item_hud = Gio.MenuItem.new("Toggle Desktop HUD", "win.toggle_hud")
+        item_hud.set_icon(Gio.ThemedIcon.new("view-restore-symbolic"))
+        menu.append_item(item_hud)
+
+        item_trouble = Gio.MenuItem.new("Diagnostics and Troubleshoot", "win.troubleshoot")
+        item_trouble.set_icon(Gio.ThemedIcon.new("network-workgroup-symbolic"))
+        menu.append_item(item_trouble)
+
+        item_prefs = Gio.MenuItem.new("Preferences", "win.preferences")
+        item_prefs.set_icon(Gio.ThemedIcon.new("preferences-system-symbolic"))
+        menu.append_item(item_prefs)
 
         section_exit = Gio.Menu()
-        section_exit.append("Quit NetSplit", "app.quit")
+        item_exit = Gio.MenuItem.new("Quit NetSplit", "app.quit")
+        item_exit.set_icon(Gio.ThemedIcon.new("application-exit-symbolic"))
+        section_exit.append_item(item_exit)
         menu.append_section(None, section_exit)
 
         menu_btn = Gtk.MenuButton()
         menu_btn.set_icon_name("open-menu-symbolic")
         menu_btn.set_menu_model(menu)
-        menu_btn.set_tooltip_text("Options Menu")
+        menu_btn.set_tooltip_text("Options")
         header.pack_end(menu_btn)
 
-        # Quick Troubleshoot Header Button
-        btn_quick_trouble = Gtk.Button()
-        btn_quick_trouble.set_label("Troubleshoot")
-        btn_quick_trouble.set_tooltip_text("Open Network Diagnostics & Repair")
-        btn_quick_trouble.add_css_class("flat")
-        btn_quick_trouble.set_valign(Gtk.Align.CENTER)
-        btn_quick_trouble.connect("clicked", self._on_menu_troubleshoot)
-        header.pack_end(btn_quick_trouble)
-
-        # Quick Mini HUD Header Button
-        btn_quick_hud = Gtk.Button()
-        btn_quick_hud.set_label("Mini HUD")
-        btn_quick_hud.set_tooltip_text("Toggle Floating Desktop HUD Pill")
-        btn_quick_hud.add_css_class("flat")
-        btn_quick_hud.set_valign(Gtk.Align.CENTER)
-        btn_quick_hud.connect("clicked", lambda *args: self._on_menu_toggle_hud(None, None))
-        header.pack_end(btn_quick_hud)
-
-        main_box.append(header)
-
-        # View Switcher Bar (Tabs)
+        # View Switcher Title for the tabs
         self.view_stack = Adw.ViewStack()
         self.view_stack.set_vexpand(True)
         self.view_stack.set_hexpand(True)
+        
+        switcher_title = Adw.ViewSwitcherTitle()
+        switcher_title.set_stack(self.view_stack)
+        switcher_title.set_title("NetSplit")
+        header.set_title_widget(switcher_title)
 
-        switcher = Adw.ViewSwitcher(
-            stack=self.view_stack,
-            policy=Adw.ViewSwitcherPolicy.WIDE
-        )
-        switcher_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, halign=Gtk.Align.CENTER)
-        switcher_box.set_margin_top(8)
-        switcher_box.set_margin_bottom(8)
-        switcher_box.append(switcher)
-        main_box.append(switcher_box)
+        main_box.append(header)
 
         # 1. Overview Page
         self.overview_page = self._build_overview_page()
@@ -311,18 +338,21 @@ class MainWindow(Adw.ApplicationWindow):
 
         # 2. Network & Diagnostics Page (Wi-Fi and LAN)
         self.wifi_page = self._build_wifi_page()
-        self.view_stack.add_titled_with_icon(self.wifi_page, "wifi", "Network & Health", "network-wireless-symbolic")
+        self.view_stack.add_titled_with_icon(self.wifi_page, "wifi", "Network", "network-wireless-symbolic")
 
+        # 3. Speed Benchmark & Bufferbloat / Jitter Page
+        self.benchmark_page = self._build_benchmark_page()
+        self.view_stack.add_titled_with_icon(self.benchmark_page, "benchmark", "Benchmark", "speedometer-symbolic")
 
-        # 3. VPN & Proxy Page (Universal for Throne, NetMod, Netch, Xray, etc.)
+        # 4. VPN & Proxy Page (Universal for Throne, NetMod, Netch, Xray, etc.)
         self.vpn_page = self._build_vpn_page()
-        self.view_stack.add_titled_with_icon(self.vpn_page, "vpn", "VPN & Proxy", "network-vpn-symbolic")
+        self.view_stack.add_titled_with_icon(self.vpn_page, "vpn", "VPN and Proxy", "network-vpn-symbolic")
 
-        # 4. History Page
+        # 5. History Page
         self.history_page = self._build_history_page()
         self.view_stack.add_titled_with_icon(self.history_page, "history", "History", "document-open-recent-symbolic")
 
-        # 5. Settings Page
+        # 6. Settings Page
         self.settings_page = self._build_settings_page()
         self.view_stack.add_titled_with_icon(self.settings_page, "settings", "Settings", "preferences-system-symbolic")
 
@@ -618,7 +648,225 @@ class MainWindow(Adw.ApplicationWindow):
         scroller.set_child(clamp)
         return scroller
 
-    # --- Page 3: VPN & Proxy (Universal) ---
+    # --- Page 3: Speed Benchmark & Bufferbloat / Jitter ---
+    def _build_benchmark_page(self) -> Gtk.Widget:
+        scroller = Gtk.ScrolledWindow()
+        scroller.set_vexpand(True)
+        scroller.set_hexpand(True)
+
+        clamp = Adw.Clamp(maximum_size=820)
+        clamp.set_vexpand(True)
+
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        box.set_margin_start(16)
+        box.set_margin_end(16)
+        box.set_margin_top(14)
+        box.set_margin_bottom(24)
+
+        # 1. Action & Status Hero Card
+        hero_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
+        hero_card.add_css_class("bench-card")
+
+        hero_top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        title_box.set_hexpand(True)
+
+        title_lbl = Gtk.Label(label="Connection Speed & Bufferbloat Benchmark", halign=Gtk.Align.START)
+        title_lbl.add_css_class("card-title")
+        subtitle_lbl = Gtk.Label(
+            label="Measure download/upload bandwidth, idle latency, and real-time bufferbloat jitter under heavy load",
+            halign=Gtk.Align.START
+        )
+        subtitle_lbl.add_css_class("info-label")
+        subtitle_lbl.set_wrap(True)
+        title_box.append(title_lbl)
+        title_box.append(subtitle_lbl)
+        hero_top.append(title_box)
+
+        # Grade Badge in Hero
+        self.val_grade_badge = Gtk.Label(label="--")
+        self.val_grade_badge.add_css_class("grade-badge-good")
+        self.val_grade_badge.set_valign(Gtk.Align.CENTER)
+        hero_top.append(self.val_grade_badge)
+        hero_card.append(hero_top)
+
+        # Action Button & Progress Bar
+        action_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=14)
+        action_row.set_margin_top(8)
+
+        self.btn_run_bench = Gtk.Button(label="Start Benchmark")
+        self.btn_run_bench.add_css_class("suggested-action")
+        self.btn_run_bench.add_css_class("pill")
+        self.btn_run_bench.set_size_request(190, 42)
+        self.btn_run_bench.connect("clicked", self._on_start_benchmark)
+        action_row.append(self.btn_run_bench)
+
+        self.bench_progress = Gtk.ProgressBar()
+        self.bench_progress.set_hexpand(True)
+        self.bench_progress.set_valign(Gtk.Align.CENTER)
+        self.bench_progress.set_show_text(True)
+        self.bench_progress.set_text("Ready to test")
+        self.bench_progress.set_fraction(0.0)
+        action_row.append(self.bench_progress)
+
+        hero_card.append(action_row)
+        box.append(hero_card)
+
+        # 2. Results Metrics Group
+        self.bench_results_group = Adw.PreferencesGroup(
+            title="Telemetry and Latency Diagnostics",
+            description="Active latency comparison and packet jitter measured directly via Cloudflare Edge infrastructure"
+        )
+
+        # Idle Ping Row
+        self.row_bench_idle = Adw.ActionRow(title="Baseline Idle Latency (Unloaded Ping)")
+        self.row_bench_idle.set_subtitle("ICMP ping round-trip time and jitter before running throughput tests")
+        self.val_bench_idle = Gtk.Label(label="--", halign=Gtk.Align.END)
+        self.val_bench_idle.add_css_class("info-val")
+        self.row_bench_idle.add_suffix(self.val_bench_idle)
+        self.bench_results_group.add(self.row_bench_idle)
+
+        # Download Speed Row
+        self.row_bench_dl = Adw.ActionRow(title="Download Throughput")
+        self.row_bench_dl.set_subtitle("Downstream bandwidth measured using parallel chunk transfers")
+        self.val_bench_dl = Gtk.Label(label="--", halign=Gtk.Align.END)
+        self.val_bench_dl.add_css_class("info-val")
+        self.row_bench_dl.add_suffix(self.val_bench_dl)
+        self.bench_results_group.add(self.row_bench_dl)
+
+        # Download Bufferbloat Row
+        self.row_bench_dl_bloat = Adw.ActionRow(title="Download Active Latency & Bufferbloat")
+        self.row_bench_dl_bloat.set_subtitle("Ping inflation while downloading at peak connection capacity")
+        self.val_bench_dl_bloat = Gtk.Label(label="--", halign=Gtk.Align.END)
+        self.val_bench_dl_bloat.add_css_class("info-val")
+        self.row_bench_dl_bloat.add_suffix(self.val_bench_dl_bloat)
+        self.bench_results_group.add(self.row_bench_dl_bloat)
+
+        # Upload Speed Row
+        self.row_bench_ul = Adw.ActionRow(title="Upload Throughput")
+        self.row_bench_ul.set_subtitle("Upstream bandwidth measured with streaming payloads")
+        self.val_bench_ul = Gtk.Label(label="--", halign=Gtk.Align.END)
+        self.val_bench_ul.add_css_class("info-val")
+        self.row_bench_ul.add_suffix(self.val_bench_ul)
+        self.bench_results_group.add(self.row_bench_ul)
+
+        # Upload Bufferbloat Row
+        self.row_bench_ul_bloat = Adw.ActionRow(title="Upload Active Latency & Bufferbloat")
+        self.row_bench_ul_bloat.set_subtitle("Ping inflation while uploading at peak connection capacity")
+        self.val_bench_ul_bloat = Gtk.Label(label="--", halign=Gtk.Align.END)
+        self.val_bench_ul_bloat.add_css_class("info-val")
+        self.row_bench_ul_bloat.add_suffix(self.val_bench_ul_bloat)
+        self.bench_results_group.add(self.row_bench_ul_bloat)
+
+        # Bufferbloat Grade Summary Row
+        self.row_bench_grade = Adw.ActionRow(title="Bufferbloat Rating")
+        self.row_bench_grade.set_subtitle("Overall rating: A+ indicates zero latency spikes, F indicates severe queue delays")
+        self.val_bench_grade_desc = Gtk.Label(label="Not tested", halign=Gtk.Align.END)
+        self.val_bench_grade_desc.add_css_class("info-val")
+        self.row_bench_grade.add_suffix(self.val_bench_grade_desc)
+        self.bench_results_group.add(self.row_bench_grade)
+
+        box.append(self.bench_results_group)
+
+        clamp.set_child(box)
+        scroller.set_child(clamp)
+
+        self.speed_benchmark = SpeedBenchmark()
+        return scroller
+
+    def _on_start_benchmark(self, btn):
+        if self.speed_benchmark.is_running:
+            return
+
+        self.btn_run_bench.set_sensitive(False)
+        self.btn_run_bench.set_label("Testing...")
+        self.bench_progress.set_fraction(0.05)
+        self.bench_progress.set_text("Measuring baseline idle ping...")
+
+        # Reset UI rows
+        self.val_bench_idle.set_label("--")
+        self.val_bench_dl.set_label("--")
+        self.val_bench_dl_bloat.set_label("--")
+        self.val_bench_ul.set_label("--")
+        self.val_bench_ul_bloat.set_label("--")
+        self.val_bench_grade_desc.set_label("Testing in progress...")
+        self.val_grade_badge.set_label("--")
+        self.val_grade_badge.remove_css_class("grade-badge-good")
+        self.val_grade_badge.remove_css_class("grade-badge-warn")
+        self.val_grade_badge.remove_css_class("grade-badge-bad")
+        self.val_grade_badge.add_css_class("grade-badge-good")
+
+        self.speed_benchmark.start_async()
+        GLib.timeout_add(250, self._check_benchmark_status)
+
+    def _check_benchmark_status(self):
+        res = self.speed_benchmark.get_results()
+        status = res.get("status", "idle")
+
+        # Update progress bar state based on status
+        if "Idle" in status:
+            self.bench_progress.set_fraction(0.25)
+            self.bench_progress.set_text("Step 1/3: Measuring Idle Latency...")
+        elif "Download" in status:
+            self.bench_progress.set_fraction(0.60)
+            self.bench_progress.set_text("Step 2/3: Measuring Download Speed & Bufferbloat...")
+        elif "Upload" in status:
+            self.bench_progress.set_fraction(0.85)
+            self.bench_progress.set_text("Step 3/3: Measuring Upload Speed & Bufferbloat...")
+
+        if res.get("idle_ping", 0) > 0:
+            self.val_bench_idle.set_label(f"{res['idle_ping']} ms  (± {res.get('idle_jitter', 0)} ms jitter)")
+
+        if res.get("download_speed_mbps", 0) > 0:
+            self.val_bench_dl.set_label(f"{res['download_speed_mbps']} Mbps")
+
+        if res.get("download_ping", 0) > 0:
+            idle_p = res.get("idle_ping", 0)
+            dl_p = res.get("download_ping", 0)
+            bloat = max(0.0, dl_p - idle_p)
+            self.val_bench_dl_bloat.set_label(f"{dl_p} ms (+{round(bloat, 1)} ms bloat)")
+
+        if res.get("upload_speed_mbps", 0) > 0:
+            self.val_bench_ul.set_label(f"{res['upload_speed_mbps']} Mbps")
+
+        if res.get("upload_ping", 0) > 0:
+            idle_p = res.get("idle_ping", 0)
+            ul_p = res.get("upload_ping", 0)
+            bloat = max(0.0, ul_p - idle_p)
+            self.val_bench_ul_bloat.set_label(f"{ul_p} ms (+{round(bloat, 1)} ms bloat)")
+
+        if not self.speed_benchmark.is_running:
+            self.bench_progress.set_fraction(1.0)
+            if "Error" in status:
+                self.bench_progress.set_text(status)
+                self.val_bench_grade_desc.set_label("Test failed")
+            else:
+                self.bench_progress.set_text("Benchmark Complete ✓")
+                grade = res.get("bufferbloat_grade", "A+")
+                self.val_grade_badge.set_label(grade)
+                self.val_grade_badge.remove_css_class("grade-badge-good")
+                self.val_grade_badge.remove_css_class("grade-badge-warn")
+                self.val_grade_badge.remove_css_class("grade-badge-bad")
+
+                if grade in ("A+", "A"):
+                    self.val_grade_badge.add_css_class("grade-badge-good")
+                    desc = f"Grade {grade} (Excellent - negligible bufferbloat)"
+                elif grade in ("B", "C"):
+                    self.val_grade_badge.add_css_class("grade-badge-warn")
+                    desc = f"Grade {grade} (Moderate latency increase under heavy load)"
+                else:
+                    self.val_grade_badge.add_css_class("grade-badge-bad")
+                    desc = f"Grade {grade} (High bufferbloat - consider SQM / QoS router tuning)"
+
+                self.val_bench_grade_desc.set_label(desc)
+
+            self.btn_run_bench.set_sensitive(True)
+            self.btn_run_bench.set_label("Run Benchmark Again")
+            return False
+
+        return True
+
+    # --- Page 4: VPN & Proxy (Universal) ---
     def _build_vpn_page(self) -> Gtk.Widget:
         scroller = Gtk.ScrolledWindow()
         scroller.set_vexpand(True)
@@ -868,7 +1116,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         # 5. Network Tools & Troubleshooting Group
         tools_group = Adw.PreferencesGroup(
-            title="Network Tools & Troubleshooting",
+            title="Network Tools and Troubleshooting",
             description="One-click diagnostic repair utilities for DNS, proxy, and connection stalls"
         )
 

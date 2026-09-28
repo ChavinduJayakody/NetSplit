@@ -1102,6 +1102,39 @@ class TestGnomeExtensionManager(unittest.TestCase):
         self.assertTrue(ok)
 
 
+class TestSpeedBenchmark(unittest.TestCase):
+    def test_benchmark_initial_state(self):
+        from core.benchmark import SpeedBenchmark
+        bench = SpeedBenchmark()
+        self.assertFalse(bench.is_running)
+        results = bench.get_results()
+        self.assertEqual(results["status"], "idle")
+        self.assertIn("bufferbloat_grade", results)
+
+    def test_calculate_grade(self):
+        from core.benchmark import SpeedBenchmark
+        bench = SpeedBenchmark()
+        
+        # Low latency difference -> A+
+        bench.results["idle_ping"] = 15.0
+        bench.results["download_ping"] = 18.0
+        bench.results["upload_ping"] = 16.0
+        self.assertEqual(bench.calculate_grade(), "A+")
+
+        # Moderate latency increase -> B
+        bench.results["idle_ping"] = 20.0
+        bench.results["download_ping"] = 45.0
+        bench.results["upload_ping"] = 30.0
+        self.assertEqual(bench.calculate_grade(), "B")
+
+        # Heavy bloat -> F
+        bench.results["idle_ping"] = 20.0
+        bench.results["download_ping"] = 160.0
+        bench.results["upload_ping"] = 200.0
+        self.assertEqual(bench.calculate_grade(), "F")
+
+
 if __name__ == "__main__":
     unittest.main()
+
 
