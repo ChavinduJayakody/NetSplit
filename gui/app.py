@@ -153,6 +153,42 @@ CSS_STYLES = """
     padding: 20px 24px;
 }
 
+.bench-gauge-card {
+    background-color: alpha(@window_fg_color, 0.05);
+    border: 1px solid alpha(@borders, 0.45);
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin: 2px;
+}
+
+.bench-speed-large {
+    font-size: 28pt;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: -0.03em;
+}
+
+.bench-meta-chip {
+    background: alpha(@window_fg_color, 0.04);
+    border: 1px solid alpha(@borders, 0.4);
+    border-radius: 12px;
+    padding: 10px 14px;
+}
+
+.bench-meta-title {
+    font-size: 8.5pt;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: alpha(@window_fg_color, 0.55);
+}
+
+.bench-meta-value {
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: alpha(@window_fg_color, 0.9);
+}
+
 .grade-badge-good {
     background: rgba(46, 194, 89, 0.2);
     color: #34d399;
@@ -654,85 +690,142 @@ class MainWindow(Adw.ApplicationWindow):
         scroller.set_vexpand(True)
         scroller.set_hexpand(True)
 
-        clamp = Adw.Clamp(maximum_size=820)
+        clamp = Adw.Clamp(maximum_size=840)
         clamp.set_vexpand(True)
 
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         box.set_margin_start(16)
         box.set_margin_end(16)
-        box.set_margin_top(14)
+        box.set_margin_top(12)
         box.set_margin_bottom(24)
 
-        # 1. Action & Status Hero Card
+        # 1. Location & Geo Ribbon (Speedtest / Fast.com style)
+        loc_grid = Gtk.Grid(column_spacing=12, row_spacing=8, column_homogeneous=True)
+
+        # Left Chip: Your Connection (ISP & Client IP)
+        chip_client = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        chip_client.add_css_class("bench-meta-chip")
+        lbl_c_title = Gtk.Label(label="Your Network & Provider", halign=Gtk.Align.START)
+        lbl_c_title.add_css_class("bench-meta-title")
+        self.lbl_bench_client = Gtk.Label(label="Detecting provider...", halign=Gtk.Align.START)
+        self.lbl_bench_client.add_css_class("bench-meta-value")
+        self.lbl_bench_client_sub = Gtk.Label(label="Location: Detecting...", halign=Gtk.Align.START)
+        self.lbl_bench_client_sub.add_css_class("info-label")
+        chip_client.append(lbl_c_title)
+        chip_client.append(self.lbl_bench_client)
+        chip_client.append(self.lbl_bench_client_sub)
+        loc_grid.attach(chip_client, 0, 0, 1, 1)
+
+        # Right Chip: Test Server (Cloudflare Anycast PoP)
+        chip_server = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        chip_server.add_css_class("bench-meta-chip")
+        lbl_s_title = Gtk.Label(label="Benchmark Server", halign=Gtk.Align.START)
+        lbl_s_title.add_css_class("bench-meta-title")
+        self.lbl_bench_server = Gtk.Label(label="Cloudflare Global Anycast Edge", halign=Gtk.Align.START)
+        self.lbl_bench_server.add_css_class("bench-meta-value")
+        self.lbl_bench_server_sub = Gtk.Label(label="Location: Optimal Server PoP", halign=Gtk.Align.START)
+        self.lbl_bench_server_sub.add_css_class("info-label")
+        chip_server.append(lbl_s_title)
+        chip_server.append(self.lbl_bench_server)
+        chip_server.append(self.lbl_bench_server_sub)
+        loc_grid.attach(chip_server, 1, 0, 1, 1)
+
+        box.append(loc_grid)
+
+        # 2. Prominent 3-Card Speed Gauge Grid (Download / Upload / Ping)
+        gauges_grid = Gtk.Grid(column_spacing=12, row_spacing=10, column_homogeneous=True)
+
+        # Gauge Card 1: Download Throughput
+        card_dl = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        card_dl.add_css_class("bench-gauge-card")
+        lbl_dl_hdr = Gtk.Label(label="↓  DOWNLOAD", halign=Gtk.Align.START)
+        lbl_dl_hdr.add_css_class("card-title")
+        self.lbl_gauge_dl = Gtk.Label(label="--", halign=Gtk.Align.START)
+        self.lbl_gauge_dl.add_css_class("speed-value-normal")
+        self.lbl_gauge_dl_sub = Gtk.Label(label="Loaded Latency: --", halign=Gtk.Align.START)
+        self.lbl_gauge_dl_sub.add_css_class("speed-sub")
+        card_dl.append(lbl_dl_hdr)
+        card_dl.append(self.lbl_gauge_dl)
+        card_dl.append(self.lbl_gauge_dl_sub)
+        gauges_grid.attach(card_dl, 0, 0, 1, 1)
+
+        # Gauge Card 2: Upload Throughput
+        card_ul = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        card_ul.add_css_class("bench-gauge-card")
+        lbl_ul_hdr = Gtk.Label(label="↑  UPLOAD", halign=Gtk.Align.START)
+        lbl_ul_hdr.add_css_class("card-title")
+        self.lbl_gauge_ul = Gtk.Label(label="--", halign=Gtk.Align.START)
+        self.lbl_gauge_ul.add_css_class("speed-value-vpn")
+        self.lbl_gauge_ul_sub = Gtk.Label(label="Loaded Latency: --", halign=Gtk.Align.START)
+        self.lbl_gauge_ul_sub.add_css_class("speed-sub")
+        card_ul.append(lbl_ul_hdr)
+        card_ul.append(self.lbl_gauge_ul)
+        card_ul.append(self.lbl_gauge_ul_sub)
+        gauges_grid.attach(card_ul, 1, 0, 1, 1)
+
+        # Gauge Card 3: Ping & Jitter
+        card_ping = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        card_ping.add_css_class("bench-gauge-card")
+        lbl_p_hdr = Gtk.Label(label="⏱  PING / LATENCY", halign=Gtk.Align.START)
+        lbl_p_hdr.add_css_class("card-title")
+        self.lbl_gauge_ping = Gtk.Label(label="--", halign=Gtk.Align.START)
+        self.lbl_gauge_ping.add_css_class("speed-value-total")
+        self.lbl_gauge_ping_sub = Gtk.Label(label="Jitter: --", halign=Gtk.Align.START)
+        self.lbl_gauge_ping_sub.add_css_class("speed-sub")
+        card_ping.append(lbl_p_hdr)
+        card_ping.append(self.lbl_gauge_ping)
+        card_ping.append(self.lbl_gauge_ping_sub)
+        gauges_grid.attach(card_ping, 2, 0, 1, 1)
+
+        box.append(gauges_grid)
+
+        # 3. Action Hero Card (Start Button & Interactive Progress Bar)
         hero_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         hero_card.add_css_class("bench-card")
 
         hero_top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
-        title_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        title_box.set_hexpand(True)
+        action_left = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=14)
+        action_left.set_hexpand(True)
 
-        title_lbl = Gtk.Label(label="Connection Speed & Bufferbloat Benchmark", halign=Gtk.Align.START)
-        title_lbl.add_css_class("card-title")
-        subtitle_lbl = Gtk.Label(
-            label="Measure download/upload bandwidth, idle latency, and real-time bufferbloat jitter under heavy load",
-            halign=Gtk.Align.START
-        )
-        subtitle_lbl.add_css_class("info-label")
-        subtitle_lbl.set_wrap(True)
-        title_box.append(title_lbl)
-        title_box.append(subtitle_lbl)
-        hero_top.append(title_box)
-
-        # Grade Badge in Hero
-        self.val_grade_badge = Gtk.Label(label="--")
-        self.val_grade_badge.add_css_class("grade-badge-good")
-        self.val_grade_badge.set_valign(Gtk.Align.CENTER)
-        hero_top.append(self.val_grade_badge)
-        hero_card.append(hero_top)
-
-        # Action Button & Progress Bar
-        action_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=14)
-        action_row.set_margin_top(8)
-
-        self.btn_run_bench = Gtk.Button(label="Start Benchmark")
+        self.btn_run_bench = Gtk.Button(label="Start Speed Test")
         self.btn_run_bench.add_css_class("suggested-action")
         self.btn_run_bench.add_css_class("pill")
-        self.btn_run_bench.set_size_request(190, 42)
+        self.btn_run_bench.set_size_request(200, 44)
         self.btn_run_bench.connect("clicked", self._on_start_benchmark)
-        action_row.append(self.btn_run_bench)
+        action_left.append(self.btn_run_bench)
 
         self.bench_progress = Gtk.ProgressBar()
         self.bench_progress.set_hexpand(True)
         self.bench_progress.set_valign(Gtk.Align.CENTER)
         self.bench_progress.set_show_text(True)
-        self.bench_progress.set_text("Ready to test")
+        self.bench_progress.set_text("Click Start Speed Test to measure bandwidth & bufferbloat")
         self.bench_progress.set_fraction(0.0)
-        action_row.append(self.bench_progress)
+        action_left.append(self.bench_progress)
 
-        hero_card.append(action_row)
+        hero_top.append(action_left)
+
+        # Bufferbloat Grade Badge
+        self.val_grade_badge = Gtk.Label(label="--")
+        self.val_grade_badge.add_css_class("grade-badge-good")
+        self.val_grade_badge.set_valign(Gtk.Align.CENTER)
+        hero_top.append(self.val_grade_badge)
+
+        hero_card.append(hero_top)
         box.append(hero_card)
 
-        # 2. Results Metrics Group
+        # 4. Detailed Telemetry & Bufferbloat Group
         self.bench_results_group = Adw.PreferencesGroup(
-            title="Telemetry and Latency Diagnostics",
-            description="Active latency comparison and packet jitter measured directly via Cloudflare Edge infrastructure"
+            title="Bufferbloat and Quality Diagnostics",
+            description="Active TCP round-trip latency comparison and bufferbloat queue analysis"
         )
 
         # Idle Ping Row
         self.row_bench_idle = Adw.ActionRow(title="Baseline Idle Latency (Unloaded Ping)")
-        self.row_bench_idle.set_subtitle("ICMP ping round-trip time and jitter before running throughput tests")
+        self.row_bench_idle.set_subtitle("Round-trip time to edge server before saturating bandwidth")
         self.val_bench_idle = Gtk.Label(label="--", halign=Gtk.Align.END)
         self.val_bench_idle.add_css_class("info-val")
         self.row_bench_idle.add_suffix(self.val_bench_idle)
         self.bench_results_group.add(self.row_bench_idle)
-
-        # Download Speed Row
-        self.row_bench_dl = Adw.ActionRow(title="Download Throughput")
-        self.row_bench_dl.set_subtitle("Downstream bandwidth measured using parallel chunk transfers")
-        self.val_bench_dl = Gtk.Label(label="--", halign=Gtk.Align.END)
-        self.val_bench_dl.add_css_class("info-val")
-        self.row_bench_dl.add_suffix(self.val_bench_dl)
-        self.bench_results_group.add(self.row_bench_dl)
 
         # Download Bufferbloat Row
         self.row_bench_dl_bloat = Adw.ActionRow(title="Download Active Latency & Bufferbloat")
@@ -741,14 +834,6 @@ class MainWindow(Adw.ApplicationWindow):
         self.val_bench_dl_bloat.add_css_class("info-val")
         self.row_bench_dl_bloat.add_suffix(self.val_bench_dl_bloat)
         self.bench_results_group.add(self.row_bench_dl_bloat)
-
-        # Upload Speed Row
-        self.row_bench_ul = Adw.ActionRow(title="Upload Throughput")
-        self.row_bench_ul.set_subtitle("Upstream bandwidth measured with streaming payloads")
-        self.val_bench_ul = Gtk.Label(label="--", halign=Gtk.Align.END)
-        self.val_bench_ul.add_css_class("info-val")
-        self.row_bench_ul.add_suffix(self.val_bench_ul)
-        self.bench_results_group.add(self.row_bench_ul)
 
         # Upload Bufferbloat Row
         self.row_bench_ul_bloat = Adw.ActionRow(title="Upload Active Latency & Bufferbloat")
@@ -759,8 +844,8 @@ class MainWindow(Adw.ApplicationWindow):
         self.bench_results_group.add(self.row_bench_ul_bloat)
 
         # Bufferbloat Grade Summary Row
-        self.row_bench_grade = Adw.ActionRow(title="Bufferbloat Rating")
-        self.row_bench_grade.set_subtitle("Overall rating: A+ indicates zero latency spikes, F indicates severe queue delays")
+        self.row_bench_grade = Adw.ActionRow(title="QoS Bufferbloat Grade")
+        self.row_bench_grade.set_subtitle("Rating scale: A+ indicates zero buffering delay; F indicates severe lag during transfers")
         self.val_bench_grade_desc = Gtk.Label(label="Not tested", halign=Gtk.Align.END)
         self.val_bench_grade_desc.add_css_class("info-val")
         self.row_bench_grade.add_suffix(self.val_bench_grade_desc)
@@ -780,16 +865,22 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.btn_run_bench.set_sensitive(False)
         self.btn_run_bench.set_label("Testing...")
-        self.bench_progress.set_fraction(0.05)
-        self.bench_progress.set_text("Measuring baseline idle ping...")
+        self.bench_progress.set_fraction(0.08)
+        self.bench_progress.set_text("Connecting to nearest Cloudflare Edge server...")
 
-        # Reset UI rows
+        # Reset gauge cards
+        self.lbl_gauge_dl.set_label("0.0")
+        self.lbl_gauge_dl_sub.set_label("Testing...")
+        self.lbl_gauge_ul.set_label("0.0")
+        self.lbl_gauge_ul_sub.set_label("Waiting...")
+        self.lbl_gauge_ping.set_label("0.0")
+        self.lbl_gauge_ping_sub.set_label("Measuring...")
+
+        # Reset detail rows
         self.val_bench_idle.set_label("--")
-        self.val_bench_dl.set_label("--")
         self.val_bench_dl_bloat.set_label("--")
-        self.val_bench_ul.set_label("--")
         self.val_bench_ul_bloat.set_label("--")
-        self.val_bench_grade_desc.set_label("Testing in progress...")
+        self.val_bench_grade_desc.set_label("Running test...")
         self.val_grade_badge.set_label("--")
         self.val_grade_badge.remove_css_class("grade-badge-good")
         self.val_grade_badge.remove_css_class("grade-badge-warn")
@@ -797,52 +888,66 @@ class MainWindow(Adw.ApplicationWindow):
         self.val_grade_badge.add_css_class("grade-badge-good")
 
         self.speed_benchmark.start_async()
-        GLib.timeout_add(250, self._check_benchmark_status)
+        GLib.timeout_add(150, self._check_benchmark_status)
 
     def _check_benchmark_status(self):
         res = self.speed_benchmark.get_results()
+        stage = res.get("stage", "idle")
         status = res.get("status", "idle")
+        progress = res.get("progress", 0.0)
 
-        # Update progress bar state based on status
-        if "Idle" in status:
-            self.bench_progress.set_fraction(0.25)
-            self.bench_progress.set_text("Step 1/3: Measuring Idle Latency...")
-        elif "Download" in status:
-            self.bench_progress.set_fraction(0.60)
-            self.bench_progress.set_text("Step 2/3: Measuring Download Speed & Bufferbloat...")
-        elif "Upload" in status:
-            self.bench_progress.set_fraction(0.85)
-            self.bench_progress.set_text("Step 3/3: Measuring Upload Speed & Bufferbloat...")
+        # Update Location & Provider Ribbon
+        client_isp = res.get("client_isp", "Direct Network")
+        client_ip = res.get("client_ip", "--")
+        client_loc = res.get("client_location", "Unknown")
+        self.lbl_bench_client.set_label(f"{client_isp} ({client_ip})")
+        self.lbl_bench_client_sub.set_label(f"Location: {client_loc}")
 
-        if res.get("idle_ping", 0) > 0:
-            self.val_bench_idle.set_label(f"{res['idle_ping']} ms  (± {res.get('idle_jitter', 0)} ms jitter)")
+        server_loc = res.get("server_location", "Optimal Edge")
+        server_colo = res.get("server_colo", "--")
+        self.lbl_bench_server.set_label(f"Cloudflare Edge • {server_loc}")
+        self.lbl_bench_server_sub.set_label(f"PoP Airport Code: {server_colo}")
 
-        if res.get("download_speed_mbps", 0) > 0:
-            self.val_bench_dl.set_label(f"{res['download_speed_mbps']} Mbps")
+        self.bench_progress.set_fraction(progress)
+        self.bench_progress.set_text(status)
 
-        if res.get("download_ping", 0) > 0:
-            idle_p = res.get("idle_ping", 0)
-            dl_p = res.get("download_ping", 0)
-            bloat = max(0.0, dl_p - idle_p)
-            self.val_bench_dl_bloat.set_label(f"{dl_p} ms (+{round(bloat, 1)} ms bloat)")
+        # Update Ping Gauge
+        idle_p = res.get("idle_ping", 0.0)
+        idle_j = res.get("idle_jitter", 0.0)
+        if idle_p > 0:
+            self.lbl_gauge_ping.set_label(f"{idle_p} ms")
+            self.lbl_gauge_ping_sub.set_label(f"Jitter: ± {idle_j} ms")
+            self.val_bench_idle.set_label(f"{idle_p} ms  (± {idle_j} ms)")
 
-        if res.get("upload_speed_mbps", 0) > 0:
-            self.val_bench_ul.set_label(f"{res['upload_speed_mbps']} Mbps")
+        # Update Live / Final Download Speed Gauge
+        dl_speed = res.get("download_speed_mbps", 0.0)
+        if dl_speed > 0:
+            self.lbl_gauge_dl.set_label(f"{dl_speed} Mbps")
+            dl_p = res.get("download_ping", 0.0)
+            if dl_p > 0 and idle_p > 0:
+                bloat_dl = max(0.0, dl_p - idle_p)
+                self.lbl_gauge_dl_sub.set_label(f"Loaded: {dl_p} ms (+{round(bloat_dl, 1)} ms)")
+                self.val_bench_dl_bloat.set_label(f"{dl_p} ms (+{round(bloat_dl, 1)} ms bloat)")
 
-        if res.get("upload_ping", 0) > 0:
-            idle_p = res.get("idle_ping", 0)
-            ul_p = res.get("upload_ping", 0)
-            bloat = max(0.0, ul_p - idle_p)
-            self.val_bench_ul_bloat.set_label(f"{ul_p} ms (+{round(bloat, 1)} ms bloat)")
+        # Update Live / Final Upload Speed Gauge
+        ul_speed = res.get("upload_speed_mbps", 0.0)
+        if ul_speed > 0:
+            self.lbl_gauge_ul.set_label(f"{ul_speed} Mbps")
+            ul_p = res.get("upload_ping", 0.0)
+            if ul_p > 0 and idle_p > 0:
+                bloat_ul = max(0.0, ul_p - idle_p)
+                self.lbl_gauge_ul_sub.set_label(f"Loaded: {ul_p} ms (+{round(bloat_ul, 1)} ms)")
+                self.val_bench_ul_bloat.set_label(f"{ul_p} ms (+{round(bloat_ul, 1)} ms bloat)")
 
         if not self.speed_benchmark.is_running:
             self.bench_progress.set_fraction(1.0)
             if "Error" in status:
                 self.bench_progress.set_text(status)
-                self.val_bench_grade_desc.set_label("Test failed")
+                self.val_bench_grade_desc.set_label("Benchmark test failed")
             else:
-                self.bench_progress.set_text("Benchmark Complete ✓")
+                self.bench_progress.set_text("Speed Test & Bufferbloat Benchmark Complete ✓")
                 grade = res.get("bufferbloat_grade", "A+")
+                desc = res.get("grade_description", "")
                 self.val_grade_badge.set_label(grade)
                 self.val_grade_badge.remove_css_class("grade-badge-good")
                 self.val_grade_badge.remove_css_class("grade-badge-warn")
@@ -850,13 +955,10 @@ class MainWindow(Adw.ApplicationWindow):
 
                 if grade in ("A+", "A"):
                     self.val_grade_badge.add_css_class("grade-badge-good")
-                    desc = f"Grade {grade} (Excellent - negligible bufferbloat)"
                 elif grade in ("B", "C"):
                     self.val_grade_badge.add_css_class("grade-badge-warn")
-                    desc = f"Grade {grade} (Moderate latency increase under heavy load)"
                 else:
                     self.val_grade_badge.add_css_class("grade-badge-bad")
-                    desc = f"Grade {grade} (High bufferbloat - consider SQM / QoS router tuning)"
 
                 self.val_bench_grade_desc.set_label(desc)
 

@@ -1108,8 +1108,10 @@ class TestSpeedBenchmark(unittest.TestCase):
         bench = SpeedBenchmark()
         self.assertFalse(bench.is_running)
         results = bench.get_results()
-        self.assertEqual(results["status"], "idle")
+        self.assertEqual(results["stage"], "idle")
         self.assertIn("bufferbloat_grade", results)
+        self.assertIn("server_location", results)
+        self.assertIn("client_isp", results)
 
     def test_calculate_grade(self):
         from core.benchmark import SpeedBenchmark
@@ -1119,19 +1121,25 @@ class TestSpeedBenchmark(unittest.TestCase):
         bench.results["idle_ping"] = 15.0
         bench.results["download_ping"] = 18.0
         bench.results["upload_ping"] = 16.0
-        self.assertEqual(bench.calculate_grade(), "A+")
+        grade, desc = bench.calculate_grade()
+        self.assertEqual(grade, "A+")
+        self.assertIn("A+", desc)
 
         # Moderate latency increase -> B
         bench.results["idle_ping"] = 20.0
-        bench.results["download_ping"] = 45.0
+        bench.results["download_ping"] = 55.0
         bench.results["upload_ping"] = 30.0
-        self.assertEqual(bench.calculate_grade(), "B")
+        grade, desc = bench.calculate_grade()
+        self.assertEqual(grade, "B")
+        self.assertIn("B", desc)
 
         # Heavy bloat -> F
         bench.results["idle_ping"] = 20.0
-        bench.results["download_ping"] = 160.0
-        bench.results["upload_ping"] = 200.0
-        self.assertEqual(bench.calculate_grade(), "F")
+        bench.results["download_ping"] = 280.0
+        bench.results["upload_ping"] = 300.0
+        grade, desc = bench.calculate_grade()
+        self.assertEqual(grade, "F")
+        self.assertIn("F", desc)
 
 
 if __name__ == "__main__":
