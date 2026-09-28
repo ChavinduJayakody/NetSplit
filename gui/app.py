@@ -1548,7 +1548,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         banner_card = Adw.ActionRow(
             title="NetSplit",
-            subtitle="Network &amp; VPN Traffic Monitor • v1.6.0"
+            subtitle="Network &amp; VPN Traffic Monitor • v1.7.0"
         )
         banner_card.set_activatable(False)
         svg_path = os.path.join(self.assets_dir, "netsplit.svg")
