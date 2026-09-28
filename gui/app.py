@@ -260,6 +260,54 @@ CSS_STYLES = """
     font-weight: 700;
     color: alpha(@window_fg_color, 0.75);
 }
+
+.quick-tile {
+    background-color: alpha(@window_fg_color, 0.05);
+    border: 1px solid alpha(@borders, 0.5);
+    border-radius: 14px;
+    padding: 10px 14px;
+    min-height: 52px;
+    transition: all 200ms ease-in-out;
+}
+
+.quick-tile:hover {
+    background-color: alpha(@window_fg_color, 0.09);
+    border-color: alpha(@borders, 0.8);
+}
+
+.quick-tile-active {
+    background-color: alpha(#38bdf8, 0.14);
+    border: 1px solid alpha(#38bdf8, 0.45);
+}
+
+.quick-tile-active:hover {
+    background-color: alpha(#38bdf8, 0.22);
+    border-color: alpha(#38bdf8, 0.65);
+}
+
+.quick-tile-icon-box {
+    border-radius: 10px;
+    padding: 8px;
+    background-color: alpha(@window_fg_color, 0.08);
+    color: @window_fg_color;
+    transition: all 180ms ease;
+}
+
+.quick-tile-icon-box-active {
+    background-color: #38bdf8;
+    color: #0b1120;
+}
+
+.quick-tile-title {
+    font-size: 10pt;
+    font-weight: 700;
+}
+
+.quick-tile-subtitle {
+    font-size: 8.5pt;
+    font-weight: 500;
+    color: alpha(@window_fg_color, 0.6);
+}
 """
 
 
@@ -1146,65 +1194,225 @@ class MainWindow(Adw.ApplicationWindow):
         scroller.set_child(clamp)
         return scroller
 
+    def _create_quick_tile(self, icon_name: str, title: str, subtitle: str, on_clicked, is_active: bool = False, is_action: bool = False):
+        btn = Gtk.Button()
+        btn.add_css_class("quick-tile")
+        if is_active:
+            btn.add_css_class("quick-tile-active")
+
+        box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        box.set_valign(Gtk.Align.CENTER)
+
+        # 1. Icon Box
+        icon_box = Gtk.Box()
+        icon_box.add_css_class("quick-tile-icon-box")
+        if is_active:
+            icon_box.add_css_class("quick-tile-icon-box-active")
+        img = Gtk.Image.new_from_icon_name(icon_name)
+        img.set_pixel_size(20)
+        icon_box.append(img)
+        box.append(icon_box)
+
+        # 2. Text Box
+        lbl_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        lbl_box.set_hexpand(True)
+        lbl_box.set_valign(Gtk.Align.CENTER)
+
+        lbl_title = Gtk.Label(label=title, halign=Gtk.Align.START)
+        lbl_title.add_css_class("quick-tile-title")
+        lbl_box.append(lbl_title)
+
+        lbl_sub = Gtk.Label(label=subtitle, halign=Gtk.Align.START)
+        lbl_sub.add_css_class("quick-tile-subtitle")
+        lbl_box.append(lbl_sub)
+        box.append(lbl_box)
+
+        # 3. Status Badge Pill
+        badge_lbl = Gtk.Label()
+        badge_lbl.set_valign(Gtk.Align.CENTER)
+        badge_lbl.add_css_class("quick-tile-badge")
+        if is_action:
+            badge_lbl.set_label("RUN")
+            badge_lbl.add_css_class("quick-tile-badge-action")
+        elif is_active:
+            badge_lbl.set_label("ON")
+            badge_lbl.add_css_class("quick-tile-badge-on")
+        else:
+            badge_lbl.set_label("OFF")
+            badge_lbl.add_css_class("quick-tile-badge-off")
+        box.append(badge_lbl)
+
+        btn.set_child(box)
+        if on_clicked:
+            btn.connect("clicked", on_clicked)
+
+        return btn, icon_box, lbl_sub, badge_lbl
+
+    def _update_tile_state(self, tile_btn, icon_box, sub_lbl, badge_lbl, is_active: bool, active_text: str, inactive_text: str):
+        if is_active:
+            tile_btn.add_css_class("quick-tile-active")
+            icon_box.add_css_class("quick-tile-icon-box-active")
+            sub_lbl.set_label(active_text)
+            badge_lbl.set_label("ON")
+            badge_lbl.remove_css_class("quick-tile-badge-off")
+            badge_lbl.add_css_class("quick-tile-badge-on")
+        else:
+            tile_btn.remove_css_class("quick-tile-active")
+            icon_box.remove_css_class("quick-tile-icon-box-active")
+            sub_lbl.set_label(inactive_text)
+            badge_lbl.set_label("OFF")
+            badge_lbl.remove_css_class("quick-tile-badge-on")
+            badge_lbl.add_css_class("quick-tile-badge-off")
+
+    def _on_quick_flush_dns_clicked(self, _):
+        from core.network_tools import flush_dns
+        self.lbl_dns_sub.set_label("Flushing...")
+        res = flush_dns()
+        if res.get("success"):
+            self.lbl_dns_sub.set_label("Flushed ✓")
+            self.badge_dns.set_label("DONE")
+            self.tile_dns.add_css_class("quick-tile-active")
+            self.box_dns_icon.add_css_class("quick-tile-icon-box-active")
+        else:
+            self.lbl_dns_sub.set_label("Failed")
+        def _reset_dns():
+            self.lbl_dns_sub.set_label("Clear Resolver")
+            self.badge_dns.set_label("RUN")
+            self.tile_dns.remove_css_class("quick-tile-active")
+            self.box_dns_icon.remove_css_class("quick-tile-icon-box-active")
+            return False
+        GLib.timeout_add(2000, _reset_dns)
+
     # --- Page 5: Settings ---
     def _build_settings_page(self) -> Gtk.Widget:
         page = Adw.PreferencesPage()
 
-        # 1. Privacy & Security Group
-        privacy_group = Adw.PreferencesGroup(
-            title="Privacy and Security",
-            description="Control visibility of sensitive network identifiers"
+        # 1. Quick Settings Tiles Group
+        quick_group = Adw.PreferencesGroup(
+            title="Quick Settings",
+            description="Tap to toggle essential controls and instant network actions"
         )
-        self.mask_ip_row = Adw.SwitchRow(title="Mask IP Addresses (Privacy Mode)")
-        self.mask_ip_row.set_subtitle("Hide sensitive local and public IP addresses across all dashboard views")
+
+        grid_tiles = Gtk.Grid()
+        grid_tiles.set_column_spacing(10)
+        grid_tiles.set_row_spacing(10)
+        grid_tiles.set_column_homogeneous(True)
+        grid_tiles.set_hexpand(True)
+
+        # Backing SwitchRows (kept for event handlers and internal references)
+        self.mask_ip_row = Adw.SwitchRow()
         self.mask_ip_row.set_active(self.collector.db.get_mask_ips())
         self.mask_ip_row.connect("notify::active", self._on_mask_ips_changed)
-        privacy_group.add(self.mask_ip_row)
-        page.add(privacy_group)
 
-        # 2. Appearance & Theme Group
-        appearance_group = Adw.PreferencesGroup(
-            title="Appearance",
-            description="Application styling and color scheme preference"
+        self.hud_enable_row = Adw.SwitchRow()
+        self.hud_enable_row.set_active(self.collector.db.get_hud_enabled())
+        self.hud_enable_row.connect("notify::active", self._on_hud_enabled_changed)
+
+        self.exclusive_row = Adw.SwitchRow()
+        self.exclusive_row.set_active(self.collector.db.get_exclusive_mode())
+        self.exclusive_row.connect("notify::active", self._on_exclusive_mode_changed)
+
+        self.tray_enable_row = Adw.SwitchRow()
+        self.tray_enable_row.set_active(self.collector.db.get_tray_enabled())
+        self.tray_enable_row.connect("notify::active", self._on_tray_enabled_changed)
+
+        if is_gnome_available():
+            ext_enabled = is_extension_enabled()
+            self.gnome_ext_enable_row = Adw.SwitchRow()
+            self.gnome_ext_enable_row.set_active(ext_enabled)
+            self.gnome_ext_enable_row.connect("notify::active", self._on_gnome_ext_enabled_changed)
+
+        # Tile 1: Privacy Mode (Mask IPs)
+        is_privacy = self.collector.db.get_mask_ips()
+        self.tile_privacy, self.box_privacy_icon, self.lbl_privacy_sub, self.badge_privacy = self._create_quick_tile(
+            "security-high-symbolic",
+            "Privacy Mode",
+            "Protected (Masked)" if is_privacy else "Revealed",
+            lambda _: self.mask_ip_row.set_active(not self.mask_ip_row.get_active()),
+            is_active=is_privacy
+        )
+        grid_tiles.attach(self.tile_privacy, 0, 0, 1, 1)
+
+        # Tile 2: Floating Desktop HUD
+        is_hud = self.collector.db.get_hud_enabled()
+        self.tile_hud, self.box_hud_icon, self.lbl_hud_sub, self.badge_hud = self._create_quick_tile(
+            "user-desktop-symbolic",
+            "Floating HUD",
+            "On Desktop" if is_hud else "Hidden",
+            lambda _: self.hud_enable_row.set_active(not self.hud_enable_row.get_active()),
+            is_active=is_hud
+        )
+        grid_tiles.attach(self.tile_hud, 1, 0, 1, 1)
+
+        # Tile 3: Exclusive Mode (VPN Priority vs Split)
+        is_excl = self.collector.db.get_exclusive_mode()
+        self.tile_exclusive, self.box_exclusive_icon, self.lbl_exclusive_sub, self.badge_exclusive = self._create_quick_tile(
+            "network-vpn-symbolic",
+            "Exclusive Mode",
+            "VPN Priority" if is_excl else "Split Mode",
+            lambda _: self.exclusive_row.set_active(not self.exclusive_row.get_active()),
+            is_active=is_excl
+        )
+        grid_tiles.attach(self.tile_exclusive, 0, 1, 1, 1)
+
+        # Tile 4: GNOME Top Bar HUD (or Startup Launch)
+        if is_gnome_available():
+            is_ext = is_extension_enabled()
+            self.tile_gnome_ext, self.box_gnome_ext_icon, self.lbl_gnome_ext_sub, self.badge_gnome_ext = self._create_quick_tile(
+                "application-x-addon-symbolic",
+                "Top Bar HUD",
+                "Active on Panel" if is_ext else "Disabled",
+                lambda _: self.gnome_ext_enable_row.set_active(not self.gnome_ext_enable_row.get_active()),
+                is_active=is_ext
+            )
+            grid_tiles.attach(self.tile_gnome_ext, 1, 1, 1, 1)
+        else:
+            is_auto = is_autostart_enabled() if is_autostart_supported() else False
+            self.tile_autostart, self.box_autostart_icon, self.lbl_autostart_sub, self.badge_autostart = self._create_quick_tile(
+                "system-run-symbolic",
+                "Start on Boot",
+                "Enabled" if is_auto else "Disabled",
+                lambda _: self.autostart_row.set_active(not self.autostart_row.get_active()),
+                is_active=is_auto
+            )
+            grid_tiles.attach(self.tile_autostart, 1, 1, 1, 1)
+
+        # Tile 5: System Tray Integration
+        is_tray = self.collector.db.get_tray_enabled()
+        self.tile_tray, self.box_tray_icon, self.lbl_tray_sub, self.badge_tray = self._create_quick_tile(
+            "preferences-desktop-display-symbolic",
+            "System Tray",
+            "Monitoring 24/7" if is_tray else "Disabled",
+            lambda _: self.tray_enable_row.set_active(not self.tray_enable_row.get_active()),
+            is_active=is_tray
+        )
+        grid_tiles.attach(self.tile_tray, 0, 2, 1, 1)
+
+        # Tile 6: Flush DNS Resolver
+        self.tile_dns, self.box_dns_icon, self.lbl_dns_sub, self.badge_dns = self._create_quick_tile(
+            "view-refresh-symbolic",
+            "Flush DNS Cache",
+            "Clear Resolver",
+            self._on_quick_flush_dns_clicked,
+            is_active=False,
+            is_action=True
+        )
+        grid_tiles.attach(self.tile_dns, 1, 2, 1, 1)
+
+        quick_group.add(grid_tiles)
+        page.add(quick_group)
+
+        # 2. Display & Telemetry Preferences
+        display_group = Adw.PreferencesGroup(
+            title="Display and Telemetry Metrics",
+            description="Theme styling, telemetry formats, and HUD window opacity"
         )
         self.theme_row = Adw.ComboRow(title="Application Theme")
         self.theme_row.set_subtitle("Switch between dark, light, or follow system default")
         model = Gtk.StringList.new(["System Default", "Dark Theme", "Light Theme"])
         self.theme_row.set_model(model)
         self.theme_row.connect("notify::selected", self._on_theme_changed)
-        appearance_group.add(self.theme_row)
-        page.add(appearance_group)
-
-        # 3. Desktop Integration and HUDs Group
-        desktop_group = Adw.PreferencesGroup(
-            title="Desktop Integration and HUDs",
-            description="Background monitoring, system tray icon, floating mini HUD, and GNOME top panel integration"
-        )
-
-        self.tray_enable_row = Adw.SwitchRow(title="System Tray Integration")
-        self.tray_enable_row.set_subtitle("Show status icon and live speeds in desktop notification area")
-        self.tray_enable_row.set_active(self.collector.db.get_tray_enabled())
-        self.tray_enable_row.connect("notify::active", self._on_tray_enabled_changed)
-        desktop_group.add(self.tray_enable_row)
-
-        self.min_to_tray_row = Adw.SwitchRow(title="Minimize to Tray on Close")
-        self.min_to_tray_row.set_subtitle("Closing window keeps NetSplit tracking 24/7 in the background")
-        self.min_to_tray_row.set_active(self.collector.db.get_minimize_to_tray())
-        self.min_to_tray_row.connect("notify::active", self._on_min_to_tray_changed)
-        desktop_group.add(self.min_to_tray_row)
-
-        self.start_min_row = Adw.SwitchRow(title="Launch Minimized to Tray")
-        self.start_min_row.set_subtitle("Start NetSplit silently in the background on launch")
-        self.start_min_row.set_active(self.collector.db.get_start_minimized())
-        self.start_min_row.connect("notify::active", self._on_start_min_changed)
-        desktop_group.add(self.start_min_row)
-
-        if is_autostart_supported():
-            self.autostart_row = Adw.SwitchRow(title="Launch on System Startup")
-            self.autostart_row.set_subtitle("Automatically start NetSplit in background when logging in")
-            self.autostart_row.set_active(is_autostart_enabled())
-            self.autostart_row.connect("notify::active", self._on_autostart_changed)
-            desktop_group.add(self.autostart_row)
+        display_group.add(self.theme_row)
 
         self.tray_mode_row = Adw.ComboRow(title="System Tray Display Metric")
         self.tray_mode_row.set_subtitle("Select metric displayed directly in system tray / indicator")
@@ -1215,13 +1423,7 @@ class MainWindow(Adw.ApplicationWindow):
         idx = keys.index(cur_tray_mode) if cur_tray_mode in keys else 0
         self.tray_mode_row.set_selected(idx)
         self.tray_mode_row.connect("notify::selected", self._on_tray_mode_changed)
-        desktop_group.add(self.tray_mode_row)
-
-        self.hud_enable_row = Adw.SwitchRow(title="Show Floating Desktop HUD")
-        self.hud_enable_row.set_subtitle("Display live network speeds widget floating on your desktop")
-        self.hud_enable_row.set_active(self.collector.db.get_hud_enabled())
-        self.hud_enable_row.connect("notify::active", self._on_hud_enabled_changed)
-        desktop_group.add(self.hud_enable_row)
+        display_group.add(self.tray_mode_row)
 
         self.hud_mode_row = Adw.ComboRow(title="Floating HUD Display Metric")
         self.hud_mode_row.set_subtitle("Choose which telemetry statistic is featured in the floating HUD")
@@ -1233,7 +1435,7 @@ class MainWindow(Adw.ApplicationWindow):
         idx_hud = self.hud_keys.index(cur_hud_mode) if cur_hud_mode in self.hud_keys else 0
         self.hud_mode_row.set_selected(idx_hud)
         self.hud_mode_row.connect("notify::selected", self._on_hud_mode_changed)
-        desktop_group.add(self.hud_mode_row)
+        display_group.add(self.hud_mode_row)
 
         self.hud_opacity_row = Adw.ComboRow(title="Floating HUD Window Opacity")
         self.hud_opacity_row.set_subtitle("Adjust glass transparency level")
@@ -1241,25 +1443,12 @@ class MainWindow(Adw.ApplicationWindow):
         opacity_model = Gtk.StringList.new([f"{op}%" for op in self.hud_opacity_options])
         self.hud_opacity_row.set_model(opacity_model)
         cur_op = self.collector.db.get_hud_opacity()
-        idx_op = self.hud_opacity_options.index(cur_op) if cur_op in self.hud_opacity_options else 2  # default 90%
+        idx_op = self.hud_opacity_options.index(cur_op) if cur_op in self.hud_opacity_options else 2
         self.hud_opacity_row.set_selected(idx_op)
         self.hud_opacity_row.connect("notify::selected", self._on_hud_opacity_changed)
-        desktop_group.add(self.hud_opacity_row)
+        display_group.add(self.hud_opacity_row)
 
         if is_gnome_available():
-            ext_installed = is_extension_installed()
-            ext_enabled = is_extension_enabled()
-            if ext_enabled and not self.collector.db.get_gnome_ext_enabled():
-                self.collector.db.set_gnome_ext_enabled(True)
-
-            arch_badge = " (Arch Linux Native)" if is_arch_linux() else ""
-            self.gnome_ext_enable_row = Adw.SwitchRow(title=f"GNOME Top Bar Extension HUD{arch_badge}")
-            sub_text = "Active on top panel" if ext_enabled else "Embed live network usage directly into GNOME top bar"
-            self.gnome_ext_enable_row.set_subtitle(sub_text)
-            self.gnome_ext_enable_row.set_active(ext_enabled)
-            self.gnome_ext_enable_row.connect("notify::active", self._on_gnome_ext_enabled_changed)
-            desktop_group.add(self.gnome_ext_enable_row)
-
             self.gnome_ext_mode_row = Adw.ComboRow(title="Top Bar Extension Display Metric")
             self.gnome_ext_mode_row.set_subtitle("Choose which statistic is featured on the GNOME top panel")
             gnome_ext_names = [name for k, name in DISPLAY_MODES if k != "icon_only"]
@@ -1270,65 +1459,61 @@ class MainWindow(Adw.ApplicationWindow):
             idx_ext = self.gnome_ext_keys.index(cur_ext_mode) if cur_ext_mode in self.gnome_ext_keys else 0
             self.gnome_ext_mode_row.set_selected(idx_ext)
             self.gnome_ext_mode_row.connect("notify::selected", self._on_gnome_ext_mode_changed)
-            desktop_group.add(self.gnome_ext_mode_row)
+            display_group.add(self.gnome_ext_mode_row)
 
-        page.add(desktop_group)
+        page.add(display_group)
 
-        # 4. VPN and Proxy Engine Group
-        proxy_settings_group = Adw.PreferencesGroup(
-            title="VPN and Proxy Compatibility",
-            description="Multi-protocol client detection and exclusive accounting rules"
+        # 3. Background Behavior & Network Overrides
+        behavior_group = Adw.PreferencesGroup(
+            title="Background Behavior and Network Overrides",
+            description="Window close handling, startup launch, and custom interface overrides"
         )
+        self.min_to_tray_row = Adw.SwitchRow(title="Minimize to Tray on Close")
+        self.min_to_tray_row.set_subtitle("Closing window keeps NetSplit tracking 24/7 in the background")
+        self.min_to_tray_row.set_active(self.collector.db.get_minimize_to_tray())
+        self.min_to_tray_row.connect("notify::active", self._on_min_to_tray_changed)
+        behavior_group.add(self.min_to_tray_row)
 
-        self.exclusive_row = Adw.SwitchRow(title="Exclusive Accounting Mode")
-        self.exclusive_row.set_subtitle("When VPN is active, Direct Wi-Fi reads 0 B/s and all traffic counts as VPN")
-        self.exclusive_row.set_active(self.collector.db.get_exclusive_mode())
-        self.exclusive_row.connect("notify::active", self._on_exclusive_mode_changed)
-        proxy_settings_group.add(self.exclusive_row)
+        self.start_min_row = Adw.SwitchRow(title="Launch Minimized to Tray")
+        self.start_min_row.set_subtitle("Start NetSplit silently in the background on launch")
+        self.start_min_row.set_active(self.collector.db.get_start_minimized())
+        self.start_min_row.connect("notify::active", self._on_start_min_changed)
+        behavior_group.add(self.start_min_row)
 
-        # Custom Interface Override Entry
+        if is_autostart_supported():
+            self.autostart_row = Adw.SwitchRow(title="Launch on System Startup")
+            self.autostart_row.set_subtitle("Automatically start NetSplit in background when logging in")
+            self.autostart_row.set_active(is_autostart_enabled())
+            self.autostart_row.connect("notify::active", self._on_autostart_changed)
+            behavior_group.add(self.autostart_row)
+
         self.custom_iface_row = Adw.EntryRow(title="Custom Interface Override (Optional)")
         saved_iface = self.collector.db.get_setting("custom_vpn_iface", "")
         self.custom_iface_row.set_text(saved_iface)
         self.custom_iface_row.connect("changed", self._on_custom_iface_changed)
-        proxy_settings_group.add(self.custom_iface_row)
+        behavior_group.add(self.custom_iface_row)
 
-        page.add(proxy_settings_group)
+        page.add(behavior_group)
 
-        # 5. Network Tools & Troubleshooting Group
-        tools_group = Adw.PreferencesGroup(
-            title="Network Tools and Troubleshooting",
-            description="One-click diagnostic repair utilities for DNS, proxy, and connection stalls"
+        # 4. Maintenance and History
+        maintenance_group = Adw.PreferencesGroup(
+            title="Maintenance and Data History",
+            description="Diagnostic network repairs and local SQLite history management"
         )
-
-        flush_dns_row = Adw.ActionRow(title="Flush DNS Resolver Cache")
-        flush_dns_row.set_subtitle("Invalidates cached hostnames to resolve broken DNS after VPN/proxy use")
-        self.btn_flush_dns = Gtk.Button(label="Flush DNS", valign=Gtk.Align.CENTER)
-        self.btn_flush_dns.connect("clicked", self._on_flush_dns_clicked)
-        flush_dns_row.add_suffix(self.btn_flush_dns)
-        tools_group.add(flush_dns_row)
 
         reset_proxy_row = Adw.ActionRow(title="Reset Lingering System Proxy")
         reset_proxy_row.set_subtitle("Clears dead localhost proxy redirects left behind by crashed VPN/proxy clients")
         self.btn_reset_proxy = Gtk.Button(label="Reset Proxy", valign=Gtk.Align.CENTER)
         self.btn_reset_proxy.connect("clicked", self._on_reset_proxy_clicked)
         reset_proxy_row.add_suffix(self.btn_reset_proxy)
-        tools_group.add(reset_proxy_row)
+        maintenance_group.add(reset_proxy_row)
 
         renew_dhcp_row = Adw.ActionRow(title="Renew DHCP / Reconnect Network")
         renew_dhcp_row.set_subtitle("Refreshes IP address lease and re-synchronizes the network stack")
         self.btn_renew_dhcp = Gtk.Button(label="Renew Network", valign=Gtk.Align.CENTER)
         self.btn_renew_dhcp.connect("clicked", self._on_renew_dhcp_clicked)
         renew_dhcp_row.add_suffix(self.btn_renew_dhcp)
-        tools_group.add(renew_dhcp_row)
-
-        page.add(tools_group)
-
-        # 6. Data & Storage Management Group
-        data_group = Adw.PreferencesGroup(
-            title="Data and History Management",
-            description="Local SQLite statistics storage and database maintenance"
-        )
+        maintenance_group.add(renew_dhcp_row)
 
         reset_today_row = Adw.ActionRow(title="Reset Today's Usage")
         reset_today_row.set_subtitle("Zero out accumulated bytes for today and current session")
@@ -1336,7 +1521,7 @@ class MainWindow(Adw.ApplicationWindow):
         btn_reset_today.add_css_class("suggested-action")
         btn_reset_today.connect("clicked", self._on_reset_today_clicked)
         reset_today_row.add_suffix(btn_reset_today)
-        data_group.add(reset_today_row)
+        maintenance_group.add(reset_today_row)
 
         clear_all_row = Adw.ActionRow(title="Clear All History")
         clear_all_row.set_subtitle("Permanently erase all historical daily and hourly database records")
@@ -1344,16 +1529,16 @@ class MainWindow(Adw.ApplicationWindow):
         btn_clear_all.add_css_class("destructive-action")
         btn_clear_all.connect("clicked", self._on_clear_all_clicked)
         clear_all_row.add_suffix(btn_clear_all)
-        data_group.add(clear_all_row)
+        maintenance_group.add(clear_all_row)
 
         db_loc_row = Adw.ActionRow(title="Local Database Path")
         db_path = self.collector.db.db_path
         db_loc_row.set_subtitle(db_path)
-        data_group.add(db_loc_row)
+        maintenance_group.add(db_loc_row)
 
-        page.add(data_group)
+        page.add(maintenance_group)
 
-        # 7. About NetSplit Group (Featuring netsplit.svg icon)
+        # 5. About NetSplit Group
         about_group = Adw.PreferencesGroup(title="About NetSplit")
 
         banner_card = Adw.ActionRow(
@@ -1382,12 +1567,19 @@ class MainWindow(Adw.ApplicationWindow):
         return page
 
     def _on_exclusive_mode_changed(self, row, param):
-        self.collector.db.set_exclusive_mode(row.get_active())
+        enabled = row.get_active()
+        self.collector.db.set_exclusive_mode(enabled)
+        if hasattr(self, "tile_exclusive") and self.tile_exclusive:
+            self._update_tile_state(self.tile_exclusive, self.box_exclusive_icon, self.lbl_exclusive_sub, self.badge_exclusive, enabled, "VPN Priority", "Split Mode")
         self._on_tick()
 
     def _on_mask_ips_changed(self, row, param):
         enabled = row.get_active()
         self.collector.db.set_mask_ips(enabled)
+        self.reveal_local_ip = False
+        self.reveal_public_ip = False
+        if hasattr(self, "tile_privacy") and self.tile_privacy:
+            self._update_tile_state(self.tile_privacy, self.box_privacy_icon, self.lbl_privacy_sub, self.badge_privacy, enabled, "Protected (Masked)", "Revealed")
         self._on_tick()
 
     def _on_toggle_header_ip(self, *args):
@@ -1409,6 +1601,8 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_tray_enabled_changed(self, row, param):
         enabled = row.get_active()
         self.collector.db.set_tray_enabled(enabled)
+        if hasattr(self, "tile_tray") and self.tile_tray:
+            self._update_tile_state(self.tile_tray, self.box_tray_icon, self.lbl_tray_sub, self.badge_tray, enabled, "Monitoring 24/7", "Disabled")
         if enabled:
             self.app.start_tray()
         else:
@@ -1424,6 +1618,8 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_hud_enabled_changed(self, row, param):
         enabled = row.get_active()
         self.collector.db.set_hud_enabled(enabled)
+        if hasattr(self, "tile_hud") and self.tile_hud:
+            self._update_tile_state(self.tile_hud, self.box_hud_icon, self.lbl_hud_sub, self.badge_hud, enabled, "On Desktop", "Hidden")
         self.sync_hud_visibility()
 
     def _on_hud_mode_changed(self, row, param):
@@ -1446,14 +1642,12 @@ class MainWindow(Adw.ApplicationWindow):
         self.collector.db.set_gnome_ext_enabled(enabled)
         if enabled:
             ok, msg = install_and_enable_extension()
-            if hasattr(self, "gnome_ext_enable_row"):
-                self.gnome_ext_enable_row.set_subtitle("Active on top panel" if ok else f"Extension note: {msg}")
             if hasattr(self.app, "start_tray"):
                 self.app.start_tray()
         else:
             disable_extension()
-            if hasattr(self, "gnome_ext_enable_row"):
-                self.gnome_ext_enable_row.set_subtitle("Extension disabled")
+        if hasattr(self, "tile_gnome_ext") and self.tile_gnome_ext:
+            self._update_tile_state(self.tile_gnome_ext, self.box_gnome_ext_icon, self.lbl_gnome_ext_sub, self.badge_gnome_ext, enabled, "Active on Panel", "Disabled")
 
     def _on_gnome_ext_mode_changed(self, row, param):
         idx = row.get_selected()
@@ -1487,12 +1681,16 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_hud_toggled_from_widget(self, enabled: bool):
         if hasattr(self, "hud_enable_row") and self.hud_enable_row:
             self.hud_enable_row.set_active(enabled)
+        if hasattr(self, "tile_hud") and self.tile_hud:
+            self._update_tile_state(self.tile_hud, self.box_hud_icon, self.lbl_hud_sub, self.badge_hud, enabled, "On Desktop", "Hidden")
 
     def _on_menu_toggle_hud(self, action, param):
         new_state = not self.collector.db.get_hud_enabled()
         self.collector.db.set_hud_enabled(new_state)
         if hasattr(self, "hud_enable_row") and self.hud_enable_row:
             self.hud_enable_row.set_active(new_state)
+        if hasattr(self, "tile_hud") and self.tile_hud:
+            self._update_tile_state(self.tile_hud, self.box_hud_icon, self.lbl_hud_sub, self.badge_hud, new_state, "On Desktop", "Hidden")
         self.sync_hud_visibility()
 
     def _on_min_to_tray_changed(self, row, param):
@@ -1502,7 +1700,10 @@ class MainWindow(Adw.ApplicationWindow):
         self.collector.db.set_start_minimized(row.get_active())
 
     def _on_autostart_changed(self, row, param):
-        set_autostart(row.get_active())
+        enabled = row.get_active()
+        set_autostart(enabled)
+        if hasattr(self, "tile_autostart") and self.tile_autostart:
+            self._update_tile_state(self.tile_autostart, self.box_autostart_icon, self.lbl_autostart_sub, self.badge_autostart, enabled, "Start on Boot", "Manual")
 
     def _on_custom_iface_changed(self, row):
         text = row.get_text().strip()
