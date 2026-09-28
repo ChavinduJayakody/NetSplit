@@ -30,6 +30,7 @@ hidden_imports = [
     "platform",
     "ctypes",
     "contextlib",
+    "ssl",
 ]
 
 # On Windows pywebview is the native engine

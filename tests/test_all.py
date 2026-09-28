@@ -388,7 +388,7 @@ class TestNetworkToolsAndApi(unittest.TestCase):
             self.assertEqual(req.status, 200)
             data = json.loads(req.read().decode())
             self.assertIn("version", data)
-            self.assertEqual(data["version"], "1.4.0")
+            self.assertEqual(data["version"], "1.5.0")
             self.assertTrue(data["mask_ips"])
 
             # 2. POST /api/settings

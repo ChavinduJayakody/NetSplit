@@ -137,7 +137,7 @@ class NetworkMonitorHandler(BaseHTTPRequestHandler):
             "autostart_supported": is_autostart_supported(),
             "autostart": is_autostart_enabled() if is_autostart_supported() else False,
             "theme": self.collector.db.get_setting("theme", "0"),
-            "version": "1.4.0",
+            "version": "1.5.0",
             "platform": platform.system(),
         }
         self._send_json_response(payload)

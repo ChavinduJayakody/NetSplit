@@ -91,6 +91,12 @@ netsplit
 
 ## ✨ Key Features
 
+- **🚀 Built-in Speed Benchmark & Bufferbloat/Jitter Test**:
+  - Accurate throughput and latency diagnostics powered by Cloudflare Anycast Edge infrastructure.
+  - Multi-stream real-time download and upload bandwidth metering with live speed counters.
+  - Real TCP SYN-ACK round-trip latency and jitter measurements with loaded latency comparisons.
+  - Geo & Provider detection: displays your client ISP, public IP, and edge server location / airport code PoP.
+  - Automatic Bufferbloat QoS grading (`A+` through `F`) with detailed queue delay diagnostics.
 - **⚡ Exclusive Accounting Mode (Toggleable)**:
   - When VPN is active, Direct Wi-Fi reads **0 B/s** and all traffic counts as VPN.
   - Prevents double-counting when all device traffic is tunneled through a proxy or VPN.
@@ -214,7 +220,7 @@ scripts\build_exe.bat
 ## 🤖 CI/CD Automation
 
 NetSplit uses **GitHub Actions** (`.github/workflows/release.yml`) for automated builds:
-- Triggers on every release tag push (`git tag v1.4.0 && git push origin v1.4.0`) or manual workflow dispatch.
+- Triggers on every release tag push (`git tag v1.5.0 && git push origin v1.5.0`) or manual workflow dispatch.
 - Compiles both `NetSplit-Windows-x64.exe` and `NetSplit-Linux-x86_64.AppImage`.
 - Generates `SHA256SUMS.txt` cryptographic verification checksums.
 - Automatically attaches all assets to the official GitHub Release.
