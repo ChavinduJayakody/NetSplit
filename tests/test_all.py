@@ -1142,6 +1142,81 @@ class TestSpeedBenchmark(unittest.TestCase):
         self.assertIn("F", desc)
 
 
+class TestProcessMonitor(unittest.TestCase):
+    def test_process_monitor_initialization(self):
+        from core.process_monitor import ProcessMonitor
+        pm = ProcessMonitor()
+        self.assertIsNotNone(pm)
+        results = pm.get_process_telemetry()
+        self.assertIsInstance(results, list)
+        for item in results:
+            for key in ["name", "pids", "down_rate", "up_rate", "total_bytes", "conns"]:
+                self.assertIn(key, item)
+
+    def test_process_monitor_cache(self):
+        from core.process_monitor import ProcessMonitor
+        pm = ProcessMonitor(cache_ttl=2.0)
+        res1 = pm.get_process_telemetry()
+        res2 = pm.get_process_telemetry()
+        self.assertEqual(res1, res2)
+
+    def test_process_monitor_linux_ss_parsing(self):
+        from unittest.mock import patch, MagicMock
+        from core.process_monitor import ProcessMonitor
+
+        mock_ss_output = (
+            "ESTAB 0 0 192.168.1.100:44332 142.250.190.46:443 "
+            "users:((\"chrome\",pid=1234,fd=45))\n"
+            "\t cubic wscale:7,7 bytes_sent:4096 bytes_received:16384\n"
+            "ESTAB 0 0 192.168.1.100:51234 104.16.12.3:443 "
+            "users:((\"spotify\",pid=5678,fd=12))\n"
+            "\t cubic wscale:7,7 bytes_sent:2048 bytes_received:8192\n"
+        )
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(stdout=mock_ss_output, returncode=0)
+            pm = ProcessMonitor()
+            pm.is_linux = True
+            data = pm._sample_linux_ss()
+            self.assertIn(("chrome", 1234), data)
+            self.assertEqual(data[("chrome", 1234)]["sent"], 4096)
+            self.assertEqual(data[("chrome", 1234)]["recv"], 16384)
+            self.assertEqual(data[("chrome", 1234)]["conns"], 1)
+
+            self.assertIn(("spotify", 5678), data)
+            self.assertEqual(data[("spotify", 5678)]["sent"], 2048)
+            self.assertEqual(data[("spotify", 5678)]["recv"], 8192)
+
+    def test_process_monitor_rate_calculation(self):
+        from unittest.mock import patch
+        from core.process_monitor import ProcessMonitor
+
+        pm = ProcessMonitor(cache_ttl=0.0)
+        pm.is_linux = True
+
+        snap1 = {
+            ("firefox", 999): {"proc": "firefox", "pid": 999, "sent": 1000, "recv": 5000, "conns": 2}
+        }
+        snap2 = {
+            ("firefox", 999): {"proc": "firefox", "pid": 999, "sent": 2000, "recv": 15000, "conns": 2}
+        }
+
+        with patch.object(pm, "_sample_linux_ss", side_effect=[snap1, snap2]):
+            # First sample initializes baselines
+            r1 = pm.get_process_telemetry()
+            self.assertTrue(any(app["name"] == "firefox" for app in r1))
+
+            # Second sample calculates rates
+            import time
+            time.sleep(0.05)
+            r2 = pm.get_process_telemetry()
+            firefox = next((app for app in r2 if app["name"] == "firefox"), None)
+            self.assertIsNotNone(firefox)
+            self.assertGreater(firefox["down_rate"], 0)
+            self.assertGreater(firefox["up_rate"], 0)
+            self.assertEqual(firefox["conns"], 2)
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -61,8 +61,14 @@ def run_cli(collector: NetworkCollector):
             out.append(f"  Router Ping:    {gw_p:<10} Internet Ping: {inet_p}")
             out.append(f"  Local IP:       {wifi.get('local_ip', 'N/A'):<15} Public IP: {ping.get('public_ip', 'Checking...')}\n")
 
-            # Top Apps from Throne DB
-            if throne.get("top_apps"):
+            # Top Active Processes
+            procs = snapshot.get("processes", [])
+            if procs:
+                out.append(f"{C_BOLD}---------------- TOP ACTIVE PROCESSES -------{C_RESET}")
+                for app in procs[:5]:
+                    out.append(f"  • {app['name']:<18} ↓ {app['down_rate_str']:<10} ↑ {app['up_rate_str']:<10} (Total: {app['total_str']}, {app['conns']} conns)")
+                out.append("")
+            elif throne.get("top_apps"):
                 out.append(f"{C_BOLD}---------------- TOP APPS VIA VPN -----------{C_RESET}")
                 for app in throne["top_apps"][:5]:
                     out.append(f"  • {app['process']:<18} {format_bytes(app['total_bytes']):>10} (↓ {format_bytes(app['down_bytes'])} ↑ {format_bytes(app['up_bytes'])})")

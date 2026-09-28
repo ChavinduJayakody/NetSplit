@@ -22,32 +22,8 @@ from core.ping_probe import PingProbe
 
 from core.vpn_detector import VpnDetector
 from core.database import StatsDatabase
-
-
-def format_bytes(b: int) -> str:
-    """Format bytes into human-readable string (KB, MB, GB)."""
-    if b < 0:
-        b = 0
-    if b < 1024:
-        return f"{b} B"
-    elif b < 1024 ** 2:
-        return f"{b / 1024:.1f} KB"
-    elif b < 1024 ** 3:
-        return f"{b / (1024 ** 2):.2f} MB"
-    else:
-        return f"{b / (1024 ** 3):.2f} GB"
-
-
-def format_speed(bps: float) -> str:
-    """Format bytes per second into human-readable speed string."""
-    if bps < 0:
-        bps = 0
-    if bps < 1024:
-        return f"{bps:.0f} B/s"
-    elif bps < 1024 ** 2:
-        return f"{bps / 1024:.1f} KB/s"
-    else:
-        return f"{bps / (1024 ** 2):.2f} MB/s"
+from core.formatting import format_bytes, format_speed
+from core.process_monitor import ProcessMonitor
 
 
 class NetworkCollector:
@@ -69,6 +45,7 @@ class NetworkCollector:
         self.vpn = VpnDetector(custom_iface=custom_iface)
         self.throne = self.vpn  # Backwards compatibility alias
         self.ping_probe = PingProbe(gateway_ip=gw)
+        self.process_monitor = ProcessMonitor()
 
         # Wi-Fi initial info
         self.wifi_info: Dict[str, Any] = get_wifi_details(self.wifi_iface)
@@ -389,6 +366,7 @@ class NetworkCollector:
             "ping": ping_stats,
             "vpn": vpn_stats,
             "throne": vpn_stats,  # Alias for compatibility
+            "processes": self.process_monitor.get_process_telemetry() if hasattr(self, "process_monitor") and self.process_monitor else [],
             "speed_history": history_list[-30:],
         }
 

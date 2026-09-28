@@ -221,6 +221,45 @@ CSS_STYLES = """
     font-size: 16pt;
     font-family: 'JetBrains Mono', monospace;
 }
+
+.proc-hero-card {
+    background-color: alpha(@window_fg_color, 0.05);
+    border: 1px solid alpha(@borders, 0.5);
+    border-radius: 16px;
+    padding: 16px 20px;
+    margin: 4px;
+}
+
+.proc-speed-down {
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: #38bdf8;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.proc-speed-up {
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: #c084fc;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.proc-speed-idle {
+    font-size: 9pt;
+    font-weight: 600;
+    color: alpha(@window_fg_color, 0.45);
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.proc-conns-badge {
+    background: alpha(@window_fg_color, 0.08);
+    border: 1px solid alpha(@borders, 0.4);
+    border-radius: 9999px;
+    padding: 3px 10px;
+    font-size: 8.5pt;
+    font-weight: 700;
+    color: alpha(@window_fg_color, 0.75);
+}
 """
 
 
@@ -372,17 +411,17 @@ class MainWindow(Adw.ApplicationWindow):
         self.overview_page = self._build_overview_page()
         self.view_stack.add_titled_with_icon(self.overview_page, "overview", "Live Monitor", "network-transmit-receive-symbolic")
 
-        # 2. Network & Diagnostics Page (Wi-Fi and LAN)
+        # 2. Network & Diagnostics Page (Physical Connection + VPN & Proxy)
         self.wifi_page = self._build_wifi_page()
         self.view_stack.add_titled_with_icon(self.wifi_page, "wifi", "Network", "network-wireless-symbolic")
 
-        # 3. Speed Benchmark & Bufferbloat / Jitter Page
+        # 3. Process Telemetry Page (System-Wide Live Per-App Network I/O)
+        self.processes_page = self._build_processes_page()
+        self.view_stack.add_titled_with_icon(self.processes_page, "processes", "Processes", "utilities-system-monitor-symbolic")
+
+        # 4. Speed Benchmark & Bufferbloat / Jitter Page
         self.benchmark_page = self._build_benchmark_page()
         self.view_stack.add_titled_with_icon(self.benchmark_page, "benchmark", "Benchmark", "speedometer-symbolic")
-
-        # 4. VPN & Proxy Page (Universal for Throne, NetMod, Netch, Xray, etc.)
-        self.vpn_page = self._build_vpn_page()
-        self.view_stack.add_titled_with_icon(self.vpn_page, "vpn", "VPN and Proxy", "network-vpn-symbolic")
 
         # 5. History Page
         self.history_page = self._build_history_page()
@@ -639,6 +678,42 @@ class MainWindow(Adw.ApplicationWindow):
 
         box.append(self.group_network)
 
+        self.vpn_group = Adw.PreferencesGroup(
+            title="VPN and Proxy Tunnel",
+            description="Active virtual tunnel, proxy engine client, and routing status"
+        )
+
+        self.row_vpn_state = Adw.ActionRow(title="Connection State")
+        self.val_vpn_state = Gtk.Label(label="Checking...", halign=Gtk.Align.END)
+        self.val_vpn_state.add_css_class("info-val")
+        self.row_vpn_state.add_suffix(self.val_vpn_state)
+        self.vpn_group.add(self.row_vpn_state)
+
+        self.row_vpn_client = Adw.ActionRow(title="Detected Client / Tool")
+        self.val_vpn_client = Gtk.Label(label="None", halign=Gtk.Align.END)
+        self.val_vpn_client.add_css_class("info-val")
+        self.row_vpn_client.add_suffix(self.val_vpn_client)
+        self.vpn_group.add(self.row_vpn_client)
+
+        self.row_vpn_prof = Adw.ActionRow(title="Active Profile / Protocol")
+        self.val_vpn_prof = Gtk.Label(label="None", halign=Gtk.Align.END)
+        self.val_vpn_prof.add_css_class("info-val")
+        self.row_vpn_prof.add_suffix(self.val_vpn_prof)
+        self.vpn_group.add(self.row_vpn_prof)
+
+        self.row_vpn_tun = Adw.ActionRow(title="Virtual TUN / Wintun Interface")
+        self.val_vpn_tun = Gtk.Label(label="None", halign=Gtk.Align.END)
+        self.val_vpn_tun.add_css_class("info-val")
+        self.row_vpn_tun.add_suffix(self.val_vpn_tun)
+        self.vpn_group.add(self.row_vpn_tun)
+
+        self.row_vpn_procs = Adw.ActionRow(title="Running Proxy Processes")
+        self.val_vpn_procs = Gtk.Label(label="None", halign=Gtk.Align.END)
+        self.val_vpn_procs.add_css_class("info-val")
+        self.row_vpn_procs.add_suffix(self.val_vpn_procs)
+        self.vpn_group.add(self.row_vpn_procs)
+
+        box.append(self.vpn_group)
 
         diag_group = Adw.PreferencesGroup(title="Diagnostics and Latency")
 
@@ -968,58 +1043,81 @@ class MainWindow(Adw.ApplicationWindow):
 
         return True
 
-    # --- Page 4: VPN & Proxy (Universal) ---
-    def _build_vpn_page(self) -> Gtk.Widget:
+    # --- Page 3: Process Telemetry (System-Wide Per-App Network I/O) ---
+    def _build_processes_page(self) -> Gtk.Widget:
         scroller = Gtk.ScrolledWindow()
         scroller.set_vexpand(True)
         scroller.set_hexpand(True)
 
-        clamp = Adw.Clamp(maximum_size=820)
+        clamp = Adw.Clamp(maximum_size=840)
         clamp.set_vexpand(True)
 
-        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=16)
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=14)
         box.set_margin_start(16)
         box.set_margin_end(16)
         box.set_margin_top(12)
         box.set_margin_bottom(24)
 
-        vpn_group = Adw.PreferencesGroup(title="VPN and Proxy Status")
+        # 1. Top Hero Aggregate Bandwidth Card
+        hero_card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        hero_card.add_css_class("proc-hero-card")
 
-        self.row_vpn_state = Adw.ActionRow(title="Connection State")
-        self.val_vpn_state = Gtk.Label(label="Checking...", halign=Gtk.Align.END)
-        self.val_vpn_state.add_css_class("info-val")
-        self.row_vpn_state.add_suffix(self.val_vpn_state)
-        vpn_group.add(self.row_vpn_state)
+        hero_top = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=12)
+        lbl_hero_title = Gtk.Label(label="System Process Telemetry", halign=Gtk.Align.START)
+        lbl_hero_title.add_css_class("card-title")
+        lbl_hero_title.set_hexpand(True)
+        hero_top.append(lbl_hero_title)
 
-        self.row_vpn_client = Adw.ActionRow(title="Detected Client / Tool")
-        self.val_vpn_client = Gtk.Label(label="None", halign=Gtk.Align.END)
-        self.val_vpn_client.add_css_class("info-val")
-        self.row_vpn_client.add_suffix(self.val_vpn_client)
-        vpn_group.add(self.row_vpn_client)
+        self.lbl_proc_count = Gtk.Label(label="0 Active Apps", halign=Gtk.Align.END)
+        self.lbl_proc_count.add_css_class("proc-conns-badge")
+        hero_top.append(self.lbl_proc_count)
+        hero_card.append(hero_top)
 
-        self.row_vpn_prof = Adw.ActionRow(title="Active Profile / Protocol")
-        self.val_vpn_prof = Gtk.Label(label="None", halign=Gtk.Align.END)
-        self.val_vpn_prof.add_css_class("info-val")
-        self.row_vpn_prof.add_suffix(self.val_vpn_prof)
-        vpn_group.add(self.row_vpn_prof)
+        # 3 Metrics (Download, Upload, Total Throughput)
+        stats_grid = Gtk.Grid(column_spacing=12, row_spacing=8, column_homogeneous=True)
 
-        self.row_vpn_tun = Adw.ActionRow(title="Virtual TUN / Wintun Interface")
-        self.val_vpn_tun = Gtk.Label(label="None", halign=Gtk.Align.END)
-        self.val_vpn_tun.add_css_class("info-val")
-        self.row_vpn_tun.add_suffix(self.val_vpn_tun)
-        vpn_group.add(self.row_vpn_tun)
+        # Card 1: Aggregate App Download
+        box_down = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        lbl_d_t = Gtk.Label(label="↓ PROCESS DOWNLOAD", halign=Gtk.Align.START)
+        lbl_d_t.add_css_class("bench-meta-title")
+        self.lbl_proc_agg_down = Gtk.Label(label="0 B/s", halign=Gtk.Align.START)
+        self.lbl_proc_agg_down.add_css_class("speed-value-normal")
+        box_down.append(lbl_d_t)
+        box_down.append(self.lbl_proc_agg_down)
+        stats_grid.attach(box_down, 0, 0, 1, 1)
 
-        self.row_vpn_procs = Adw.ActionRow(title="Running Proxy Processes")
-        self.val_vpn_procs = Gtk.Label(label="None", halign=Gtk.Align.END)
-        self.val_vpn_procs.add_css_class("info-val")
-        self.row_vpn_procs.add_suffix(self.val_vpn_procs)
-        vpn_group.add(self.row_vpn_procs)
+        # Card 2: Aggregate App Upload
+        box_up = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        lbl_u_t = Gtk.Label(label="↑ PROCESS UPLOAD", halign=Gtk.Align.START)
+        lbl_u_t.add_css_class("bench-meta-title")
+        self.lbl_proc_agg_up = Gtk.Label(label="0 B/s", halign=Gtk.Align.START)
+        self.lbl_proc_agg_up.add_css_class("speed-value-vpn")
+        box_up.append(lbl_u_t)
+        box_up.append(self.lbl_proc_agg_up)
+        stats_grid.attach(box_up, 1, 0, 1, 1)
 
-        box.append(vpn_group)
+        # Card 3: Total App Throughput
+        box_tot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        lbl_tot_t = Gtk.Label(label="Σ APPS TOTAL", halign=Gtk.Align.START)
+        lbl_tot_t.add_css_class("bench-meta-title")
+        self.lbl_proc_agg_tot = Gtk.Label(label="0 B/s", halign=Gtk.Align.START)
+        self.lbl_proc_agg_tot.add_css_class("speed-value-total")
+        box_tot.append(lbl_tot_t)
+        box_tot.append(self.lbl_proc_agg_tot)
+        stats_grid.attach(box_tot, 2, 0, 1, 1)
 
-        self.app_group = Adw.PreferencesGroup(title="Applications Routed via Proxy / VPN")
-        self.app_rows = []
-        box.append(self.app_group)
+        hero_card.append(stats_grid)
+        box.append(hero_card)
+
+        # 2. Preferences Group with dynamic application rows
+        self.proc_group = Adw.PreferencesGroup(
+            title="Active Applications & Network Sockets",
+            description="Per-process live throughput, session data consumption, and open sockets without external daemons"
+        )
+        self.proc_rows = []
+        self._last_proc_keys = []
+        self._proc_row_widgets = {}
+        box.append(self.proc_group)
 
         clamp.set_child(box)
         scroller.set_child(clamp)
@@ -1077,39 +1175,39 @@ class MainWindow(Adw.ApplicationWindow):
         appearance_group.add(self.theme_row)
         page.add(appearance_group)
 
-        # 3. Background & System Tray Group
-        tray_group = Adw.PreferencesGroup(
-            title="Background and System Tray",
-            description="Background monitoring and system panel integration"
+        # 3. Desktop Integration and HUDs Group
+        desktop_group = Adw.PreferencesGroup(
+            title="Desktop Integration and HUDs",
+            description="Background monitoring, system tray icon, floating mini HUD, and GNOME top panel integration"
         )
 
         self.tray_enable_row = Adw.SwitchRow(title="System Tray Integration")
         self.tray_enable_row.set_subtitle("Show status icon and live speeds in desktop notification area")
         self.tray_enable_row.set_active(self.collector.db.get_tray_enabled())
         self.tray_enable_row.connect("notify::active", self._on_tray_enabled_changed)
-        tray_group.add(self.tray_enable_row)
+        desktop_group.add(self.tray_enable_row)
 
         self.min_to_tray_row = Adw.SwitchRow(title="Minimize to Tray on Close")
         self.min_to_tray_row.set_subtitle("Closing window keeps NetSplit tracking 24/7 in the background")
         self.min_to_tray_row.set_active(self.collector.db.get_minimize_to_tray())
         self.min_to_tray_row.connect("notify::active", self._on_min_to_tray_changed)
-        tray_group.add(self.min_to_tray_row)
+        desktop_group.add(self.min_to_tray_row)
 
         self.start_min_row = Adw.SwitchRow(title="Launch Minimized to Tray")
         self.start_min_row.set_subtitle("Start NetSplit silently in the background on launch")
         self.start_min_row.set_active(self.collector.db.get_start_minimized())
         self.start_min_row.connect("notify::active", self._on_start_min_changed)
-        tray_group.add(self.start_min_row)
+        desktop_group.add(self.start_min_row)
 
         if is_autostart_supported():
             self.autostart_row = Adw.SwitchRow(title="Launch on System Startup")
             self.autostart_row.set_subtitle("Automatically start NetSplit in background when logging in")
             self.autostart_row.set_active(is_autostart_enabled())
             self.autostart_row.connect("notify::active", self._on_autostart_changed)
-            tray_group.add(self.autostart_row)
+            desktop_group.add(self.autostart_row)
 
-        self.tray_mode_row = Adw.ComboRow(title="Top Bar Telemetry Display")
-        self.tray_mode_row.set_subtitle("Select metric displayed directly on GNOME Shell top panel")
+        self.tray_mode_row = Adw.ComboRow(title="System Tray Display Metric")
+        self.tray_mode_row.set_subtitle("Select metric displayed directly in system tray / indicator")
         tray_model = Gtk.StringList.new([name for _, name in DISPLAY_MODES])
         self.tray_mode_row.set_model(tray_model)
         cur_tray_mode = self.collector.db.get_tray_display_mode()
@@ -1117,23 +1215,16 @@ class MainWindow(Adw.ApplicationWindow):
         idx = keys.index(cur_tray_mode) if cur_tray_mode in keys else 0
         self.tray_mode_row.set_selected(idx)
         self.tray_mode_row.connect("notify::selected", self._on_tray_mode_changed)
-        tray_group.add(self.tray_mode_row)
+        desktop_group.add(self.tray_mode_row)
 
-        page.add(tray_group)
-
-        # 4. Mini Floating Desktop HUD Group
-        hud_group = Adw.PreferencesGroup(
-            title="Mini Floating Desktop HUD",
-            description="Movable, translucent always-on-top desktop telemetry pill"
-        )
         self.hud_enable_row = Adw.SwitchRow(title="Show Floating Desktop HUD")
         self.hud_enable_row.set_subtitle("Display live network speeds widget floating on your desktop")
         self.hud_enable_row.set_active(self.collector.db.get_hud_enabled())
         self.hud_enable_row.connect("notify::active", self._on_hud_enabled_changed)
-        hud_group.add(self.hud_enable_row)
+        desktop_group.add(self.hud_enable_row)
 
-        self.hud_mode_row = Adw.ComboRow(title="HUD Display Metric")
-        self.hud_mode_row.set_subtitle("Choose which telemetry statistic is featured in the HUD")
+        self.hud_mode_row = Adw.ComboRow(title="Floating HUD Display Metric")
+        self.hud_mode_row.set_subtitle("Choose which telemetry statistic is featured in the floating HUD")
         hud_names = [name for k, name in DISPLAY_MODES if k != "icon_only"]
         self.hud_keys = [k for k, _ in DISPLAY_MODES if k != "icon_only"]
         hud_model = Gtk.StringList.new(hud_names)
@@ -1142,9 +1233,9 @@ class MainWindow(Adw.ApplicationWindow):
         idx_hud = self.hud_keys.index(cur_hud_mode) if cur_hud_mode in self.hud_keys else 0
         self.hud_mode_row.set_selected(idx_hud)
         self.hud_mode_row.connect("notify::selected", self._on_hud_mode_changed)
-        hud_group.add(self.hud_mode_row)
+        desktop_group.add(self.hud_mode_row)
 
-        self.hud_opacity_row = Adw.ComboRow(title="HUD Window Opacity")
+        self.hud_opacity_row = Adw.ComboRow(title="Floating HUD Window Opacity")
         self.hud_opacity_row.set_subtitle("Adjust glass transparency level")
         self.hud_opacity_options = [60, 75, 90, 100]
         opacity_model = Gtk.StringList.new([f"{op}%" for op in self.hud_opacity_options])
@@ -1153,11 +1244,8 @@ class MainWindow(Adw.ApplicationWindow):
         idx_op = self.hud_opacity_options.index(cur_op) if cur_op in self.hud_opacity_options else 2  # default 90%
         self.hud_opacity_row.set_selected(idx_op)
         self.hud_opacity_row.connect("notify::selected", self._on_hud_opacity_changed)
-        hud_group.add(self.hud_opacity_row)
+        desktop_group.add(self.hud_opacity_row)
 
-        page.add(hud_group)
-
-        # 4b. GNOME Shell Top Bar Extension HUD Group (Arch Linux / GNOME)
         if is_gnome_available():
             ext_installed = is_extension_installed()
             ext_enabled = is_extension_enabled()
@@ -1165,20 +1253,15 @@ class MainWindow(Adw.ApplicationWindow):
                 self.collector.db.set_gnome_ext_enabled(True)
 
             arch_badge = " (Arch Linux Native)" if is_arch_linux() else ""
-            gnome_ext_group = Adw.PreferencesGroup(
-                title=f"GNOME Top Bar Extension HUD{arch_badge}",
-                description="Live telemetry directly on the GNOME Shell top panel (e.g. Σ 2.59 GB)"
-            )
-
-            self.gnome_ext_enable_row = Adw.SwitchRow(title="Show Top Bar Extension HUD")
+            self.gnome_ext_enable_row = Adw.SwitchRow(title=f"GNOME Top Bar Extension HUD{arch_badge}")
             sub_text = "Active on top panel" if ext_enabled else "Embed live network usage directly into GNOME top bar"
             self.gnome_ext_enable_row.set_subtitle(sub_text)
             self.gnome_ext_enable_row.set_active(ext_enabled)
             self.gnome_ext_enable_row.connect("notify::active", self._on_gnome_ext_enabled_changed)
-            gnome_ext_group.add(self.gnome_ext_enable_row)
+            desktop_group.add(self.gnome_ext_enable_row)
 
-            self.gnome_ext_mode_row = Adw.ComboRow(title="Top Bar Display Metric")
-            self.gnome_ext_mode_row.set_subtitle("Choose which statistic is featured on the top panel")
+            self.gnome_ext_mode_row = Adw.ComboRow(title="Top Bar Extension Display Metric")
+            self.gnome_ext_mode_row.set_subtitle("Choose which statistic is featured on the GNOME top panel")
             gnome_ext_names = [name for k, name in DISPLAY_MODES if k != "icon_only"]
             self.gnome_ext_keys = [k for k, _ in DISPLAY_MODES if k != "icon_only"]
             gnome_ext_model = Gtk.StringList.new(gnome_ext_names)
@@ -1187,19 +1270,15 @@ class MainWindow(Adw.ApplicationWindow):
             idx_ext = self.gnome_ext_keys.index(cur_ext_mode) if cur_ext_mode in self.gnome_ext_keys else 0
             self.gnome_ext_mode_row.set_selected(idx_ext)
             self.gnome_ext_mode_row.connect("notify::selected", self._on_gnome_ext_mode_changed)
-            gnome_ext_group.add(self.gnome_ext_mode_row)
+            desktop_group.add(self.gnome_ext_mode_row)
 
-            page.add(gnome_ext_group)
+        page.add(desktop_group)
 
-        # 5. VPN and Proxy Engine Group
+        # 4. VPN and Proxy Engine Group
         proxy_settings_group = Adw.PreferencesGroup(
             title="VPN and Proxy Compatibility",
             description="Multi-protocol client detection and exclusive accounting rules"
         )
-
-        support_row = Adw.ActionRow(title="Universal VPN / Proxy Detection")
-        support_row.set_subtitle("Auto-detects any VPN, Proxy, Tunnel, WireGuard, OpenVPN, Tailscale, Clash, Sing-Box, or Commercial VPN")
-        proxy_settings_group.add(support_row)
 
         self.exclusive_row = Adw.SwitchRow(title="Exclusive Accounting Mode")
         self.exclusive_row.set_subtitle("When VPN is active, Direct Wi-Fi reads 0 B/s and all traffic counts as VPN")
@@ -1710,35 +1789,80 @@ class MainWindow(Adw.ApplicationWindow):
         _set_lbl(self.val_vpn_procs, ", ".join(running_procs) if running_procs else "None detected")
 
 
-        # Populate top apps
-        top_apps = vpn.get("top_apps", [])
-        if top_apps != getattr(self, "_last_top_apps", None):
-            self._last_top_apps = list(top_apps)
-            for r in self.app_rows:
-                self.app_group.remove(r)
-            self.app_rows.clear()
+        # 6. Process Telemetry (System-Wide Live Per-App Network I/O)
+        proc_list = snapshot.get("processes", [])
+        total_p_down = sum(p.get("down_rate", 0.0) for p in proc_list)
+        total_p_up = sum(p.get("up_rate", 0.0) for p in proc_list)
 
-            if not top_apps:
-                row = Adw.ActionRow(title="No per-app breakdown available for current client")
-                self.app_group.add(row)
-                self.app_rows.append(row)
+        _set_lbl(self.lbl_proc_agg_down, format_speed(total_p_down))
+        _set_lbl(self.lbl_proc_agg_up, format_speed(total_p_up))
+        _set_lbl(self.lbl_proc_agg_tot, format_speed(total_p_down + total_p_up))
+        _set_lbl(self.lbl_proc_count, f"{len(proc_list)} Active Network Apps" if proc_list else "0 Active Apps")
+
+        current_names = [p["name"] for p in proc_list]
+        if current_names != getattr(self, "_last_proc_keys", None):
+            self._last_proc_keys = list(current_names)
+            for r in self.proc_rows:
+                self.proc_group.remove(r)
+            self.proc_rows.clear()
+            self._proc_row_widgets = {}
+
+            if not proc_list:
+                empty_row = Adw.ActionRow(title="No active application network traffic detected")
+                empty_row.set_icon_name("network-idle-symbolic")
+                self.proc_group.add(empty_row)
+                self.proc_rows.append(empty_row)
             else:
-                for app in top_apps:
-                    row = Adw.ActionRow(title=app["process"])
-                    if app.get("is_connections"):
-                        conns = app["total_bytes"]
-                        conn_text = f"{conns} active connection" if conns == 1 else f"{conns} active connections"
-                        row.set_subtitle(conn_text)
-                        lbl = Gtk.Label(label=f"{conns} conns", halign=Gtk.Align.END)
+                for p in proc_list:
+                    row = Adw.ActionRow(title=p["name"])
+                    row.set_icon_name("application-x-executable-symbolic")
+                    pids_str = ", ".join(str(pid) for pid in p["pids"][:3])
+                    row.set_subtitle(f"PID: {pids_str}  •  {p['conns']} conns  •  Session: {p['total_str']}")
+
+                    suffix_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+                    suffix_box.set_valign(Gtk.Align.CENTER)
+
+                    rate_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+                    lbl_d = Gtk.Label(label=f"↓ {p['down_rate_str']}", halign=Gtk.Align.END)
+                    lbl_d.add_css_class("proc-speed-down" if p["down_rate"] > 0 else "proc-speed-idle")
+                    lbl_u = Gtk.Label(label=f"↑ {p['up_rate_str']}", halign=Gtk.Align.END)
+                    lbl_u.add_css_class("proc-speed-up" if p["up_rate"] > 0 else "proc-speed-idle")
+                    rate_box.append(lbl_d)
+                    rate_box.append(lbl_u)
+
+                    badge = Gtk.Label(label=f"{p['conns']} conns")
+                    badge.add_css_class("proc-conns-badge")
+
+                    suffix_box.append(rate_box)
+                    suffix_box.append(badge)
+
+                    row.add_suffix(suffix_box)
+                    self.proc_group.add(row)
+                    self.proc_rows.append(row)
+                    self._proc_row_widgets[p["name"]] = (row, lbl_d, lbl_u, badge)
+        else:
+            for p in proc_list:
+                widgets = getattr(self, "_proc_row_widgets", {}).get(p["name"])
+                if widgets:
+                    row, lbl_d, lbl_u, badge = widgets
+                    pids_str = ", ".join(str(pid) for pid in p["pids"][:3])
+                    row.set_subtitle(f"PID: {pids_str}  •  {p['conns']} conns  •  Session: {p['total_str']}")
+                    lbl_d.set_text(f"↓ {p['down_rate_str']}")
+                    lbl_u.set_text(f"↑ {p['up_rate_str']}")
+                    badge.set_text(f"{p['conns']} conns")
+                    if p["down_rate"] > 0:
+                        lbl_d.remove_css_class("proc-speed-idle")
+                        lbl_d.add_css_class("proc-speed-down")
                     else:
-                        total_formatted = format_bytes(app["total_bytes"])
-                        sub_formatted = f"↓ {format_bytes(app['down_bytes'])}   ↑ {format_bytes(app['up_bytes'])}"
-                        row.set_subtitle(sub_formatted)
-                        lbl = Gtk.Label(label=total_formatted, halign=Gtk.Align.END)
-                    lbl.add_css_class("info-val")
-                    row.add_suffix(lbl)
-                    self.app_group.add(row)
-                    self.app_rows.append(row)
+                        lbl_d.remove_css_class("proc-speed-down")
+                        lbl_d.add_css_class("proc-speed-idle")
+
+                    if p["up_rate"] > 0:
+                        lbl_u.remove_css_class("proc-speed-idle")
+                        lbl_u.add_css_class("proc-speed-up")
+                    else:
+                        lbl_u.remove_css_class("proc-speed-up")
+                        lbl_u.add_css_class("proc-speed-idle")
 
         # 6. Daily History
         now_ts = GLib.get_monotonic_time() / 1_000_000
