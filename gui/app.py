@@ -903,7 +903,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.bench_results_group.add(self.row_bench_idle)
 
         # Download Bufferbloat Row
-        self.row_bench_dl_bloat = Adw.ActionRow(title="Download Active Latency & Bufferbloat")
+        self.row_bench_dl_bloat = Adw.ActionRow(title="Download Active Latency and Bufferbloat")
         self.row_bench_dl_bloat.set_subtitle("Ping inflation while downloading at peak connection capacity")
         self.val_bench_dl_bloat = Gtk.Label(label="--", halign=Gtk.Align.END)
         self.val_bench_dl_bloat.add_css_class("info-val")
@@ -911,7 +911,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.bench_results_group.add(self.row_bench_dl_bloat)
 
         # Upload Bufferbloat Row
-        self.row_bench_ul_bloat = Adw.ActionRow(title="Upload Active Latency & Bufferbloat")
+        self.row_bench_ul_bloat = Adw.ActionRow(title="Upload Active Latency and Bufferbloat")
         self.row_bench_ul_bloat.set_subtitle("Ping inflation while uploading at peak connection capacity")
         self.val_bench_ul_bloat = Gtk.Label(label="--", halign=Gtk.Align.END)
         self.val_bench_ul_bloat.add_css_class("info-val")
@@ -1111,7 +1111,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         # 2. Preferences Group with dynamic application rows
         self.proc_group = Adw.PreferencesGroup(
-            title="Active Applications & Network Sockets",
+            title="Active Applications and Network Sockets",
             description="Per-process live throughput, session data consumption, and open sockets without external daemons"
         )
         self.proc_rows = []
