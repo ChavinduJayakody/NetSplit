@@ -91,6 +91,10 @@ netsplit
 
 ## ✨ Key Features
 
+- **🔍 System-Wide Process Telemetry (Zero Third-Party Tools)**:
+  - Real-time per-application bandwidth metering: live download/upload speeds, session data consumption, open socket connection count, and PIDs.
+  - Native Linux socket telemetry (`ss -tip` via standard `iproute2`) requiring zero external background daemons (`nethogs`, `bmon`) and no root privileges.
+  - Dedicated "Processes" tab with aggregate throughput hero cards and smooth in-place live metric updates.
 - **🚀 Built-in Speed Benchmark & Bufferbloat/Jitter Test**:
   - Accurate throughput and latency diagnostics powered by Cloudflare Anycast Edge infrastructure.
   - Multi-stream real-time download and upload bandwidth metering with live speed counters.
@@ -220,7 +224,7 @@ scripts\build_exe.bat
 ## 🤖 CI/CD Automation
 
 NetSplit uses **GitHub Actions** (`.github/workflows/release.yml`) for automated builds:
-- Triggers on every release tag push (`git tag v1.5.0 && git push origin v1.5.0`) or manual workflow dispatch.
+- Triggers on every release tag push (`git tag v1.6.0 && git push origin v1.6.0`) or manual workflow dispatch.
 - Compiles both `NetSplit-Windows-x64.exe` and `NetSplit-Linux-x86_64.AppImage`.
 - Generates `SHA256SUMS.txt` cryptographic verification checksums.
 - Automatically attaches all assets to the official GitHub Release.
