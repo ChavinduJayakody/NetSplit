@@ -215,7 +215,7 @@ class StatsDatabase:
         self.set_setting("hud_opacity", str(clamped))
 
     def get_gnome_ext_enabled(self) -> bool:
-        return self.get_bool_setting("gnome_ext_enabled", default=False)
+        return self.get_bool_setting("gnome_ext_enabled", default=True)
 
     def set_gnome_ext_enabled(self, enabled: bool):
         self.set_bool_setting("gnome_ext_enabled", enabled)

@@ -376,7 +376,8 @@ class MainWindow(Adw.ApplicationWindow):
         min_to_tray = self.collector.db.get_minimize_to_tray()
         tray_enabled = self.collector.db.get_tray_enabled()
         hud_enabled = self.collector.db.get_hud_enabled()
-        if (min_to_tray and tray_enabled) or hud_enabled:
+        gnome_ext_enabled = self.collector.db.get_gnome_ext_enabled()
+        if (min_to_tray and tray_enabled) or hud_enabled or gnome_ext_enabled:
             self.set_visible(False)
             return True  # Keep running in background!
         self.app.quit_application()
@@ -1364,6 +1365,12 @@ class MainWindow(Adw.ApplicationWindow):
         self.tray_enable_row.set_active(self.collector.db.get_tray_enabled())
         self.tray_enable_row.connect("notify::active", self._on_tray_enabled_changed)
 
+        if is_autostart_supported():
+            self.autostart_row = Adw.SwitchRow(title="Start on Boot")
+            self.autostart_row.add_prefix(Gtk.Image.new_from_icon_name("system-run-symbolic"))
+            self.autostart_row.set_active(is_autostart_enabled())
+            self.autostart_row.connect("notify::active", self._on_autostart_changed)
+
         if is_gnome_available():
             ext_enabled = is_extension_enabled()
             self.gnome_ext_enable_row = Adw.SwitchRow()
@@ -1400,8 +1407,8 @@ class MainWindow(Adw.ApplicationWindow):
         )
         grid_tiles.attach(self.tile_exclusive, 0, 1, 1, 1)
 
-        # Tile 4: Top Bar (or Start on Boot)
         if is_gnome_available():
+            # Tile 4: Top Bar (GNOME Shell indicator)
             is_ext = is_extension_enabled()
             self.tile_gnome_ext, self.box_gnome_ext_icon, self.lbl_gnome_ext_sub = self._create_quick_tile(
                 "application-x-addon-symbolic",
@@ -1410,35 +1417,65 @@ class MainWindow(Adw.ApplicationWindow):
                 is_active=is_ext
             )
             grid_tiles.attach(self.tile_gnome_ext, 1, 1, 1, 1)
+
+            # Tile 5: Start on Boot
+            is_auto = is_autostart_enabled() if is_autostart_supported() else False
+            self.tile_autostart, self.box_autostart_icon, self.lbl_autostart_sub = self._create_quick_tile(
+                "system-run-symbolic",
+                "Start on Boot",
+                lambda _: self.autostart_row.set_active(not self.autostart_row.get_active()) if hasattr(self, "autostart_row") else None,
+                is_active=is_auto
+            )
+            grid_tiles.attach(self.tile_autostart, 0, 2, 1, 1)
+
+            # Tile 6: System Tray
+            is_tray = self.collector.db.get_tray_enabled()
+            self.tile_tray, self.box_tray_icon, self.lbl_tray_sub = self._create_quick_tile(
+                "preferences-desktop-display-symbolic",
+                "System Tray",
+                lambda _: self.tray_enable_row.set_active(not self.tray_enable_row.get_active()),
+                is_active=is_tray
+            )
+            grid_tiles.attach(self.tile_tray, 1, 2, 1, 1)
+
+            # Tile 7: Flush DNS (full width)
+            self.tile_dns, self.box_dns_icon, self.lbl_dns_sub = self._create_quick_tile(
+                "view-refresh-symbolic",
+                "Flush DNS",
+                self._on_quick_flush_dns_clicked,
+                is_active=False,
+                is_action=True
+            )
+            grid_tiles.attach(self.tile_dns, 0, 3, 2, 1)
         else:
             is_auto = is_autostart_enabled() if is_autostart_supported() else False
             self.tile_autostart, self.box_autostart_icon, self.lbl_autostart_sub = self._create_quick_tile(
                 "system-run-symbolic",
                 "Start on Boot",
-                lambda _: self.autostart_row.set_active(not self.autostart_row.get_active()),
+                lambda _: self.autostart_row.set_active(not self.autostart_row.get_active()) if hasattr(self, "autostart_row") else None,
                 is_active=is_auto
             )
             grid_tiles.attach(self.tile_autostart, 1, 1, 1, 1)
 
-        # Tile 5: System Tray
-        is_tray = self.collector.db.get_tray_enabled()
-        self.tile_tray, self.box_tray_icon, self.lbl_tray_sub = self._create_quick_tile(
-            "preferences-desktop-display-symbolic",
-            "System Tray",
-            lambda _: self.tray_enable_row.set_active(not self.tray_enable_row.get_active()),
-            is_active=is_tray
-        )
-        grid_tiles.attach(self.tile_tray, 0, 2, 1, 1)
+            # Tile 5: System Tray
+            is_tray = self.collector.db.get_tray_enabled()
+            self.tile_tray, self.box_tray_icon, self.lbl_tray_sub = self._create_quick_tile(
+                "preferences-desktop-display-symbolic",
+                "System Tray",
+                lambda _: self.tray_enable_row.set_active(not self.tray_enable_row.get_active()),
+                is_active=is_tray
+            )
+            grid_tiles.attach(self.tile_tray, 0, 2, 1, 1)
 
-        # Tile 6: Flush DNS
-        self.tile_dns, self.box_dns_icon, self.lbl_dns_sub = self._create_quick_tile(
-            "view-refresh-symbolic",
-            "Flush DNS",
-            self._on_quick_flush_dns_clicked,
-            is_active=False,
-            is_action=True
-        )
-        grid_tiles.attach(self.tile_dns, 1, 2, 1, 1)
+            # Tile 6: Flush DNS
+            self.tile_dns, self.box_dns_icon, self.lbl_dns_sub = self._create_quick_tile(
+                "view-refresh-symbolic",
+                "Flush DNS",
+                self._on_quick_flush_dns_clicked,
+                is_active=False,
+                is_action=True
+            )
+            grid_tiles.attach(self.tile_dns, 1, 2, 1, 1)
 
         quick_group.add(grid_tiles)
         page.add(quick_group)
@@ -1517,11 +1554,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.start_min_row.connect("notify::active", self._on_start_min_changed)
         behavior_group.add(self.start_min_row)
 
-        if is_autostart_supported():
-            self.autostart_row = Adw.SwitchRow(title="Start on Boot")
-            self.autostart_row.add_prefix(Gtk.Image.new_from_icon_name("system-run-symbolic"))
-            self.autostart_row.set_active(is_autostart_enabled())
-            self.autostart_row.connect("notify::active", self._on_autostart_changed)
+        if is_autostart_supported() and hasattr(self, "autostart_row"):
             behavior_group.add(self.autostart_row)
 
         self.custom_iface_row = Adw.EntryRow(title="Interface Override")
@@ -2160,6 +2193,15 @@ class NetworkMonitorApp(Adw.Application):
             on_quit=self.quit_application,
             on_display_mode_changed=_on_mode_dbus
         )
+
+        # Ensure GNOME extension is installed & enabled if GNOME is present and setting is active
+        if is_gnome_available() and self.collector.db.get_gnome_ext_enabled():
+            if not is_extension_enabled():
+                try:
+                    install_and_enable_extension()
+                except Exception as e:
+                    print(f"[GNOME] Extension auto-enable notice: {e}")
+
         if self.collector.db.get_tray_enabled() or self.collector.db.get_gnome_ext_enabled():
             self.tray.start()
 

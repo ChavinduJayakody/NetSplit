@@ -939,6 +939,7 @@ class TestDesktopHudAndTrayTelemetry(unittest.TestCase):
         # Default settings
         self.assertEqual(self.db.get_tray_display_mode(), "speeds_total")
         self.assertFalse(self.db.get_hud_enabled())
+        self.assertTrue(self.db.get_gnome_ext_enabled())
         self.assertEqual(self.db.get_hud_display_mode(), "speeds_total")
         self.assertEqual(self.db.get_hud_opacity(), 90)
 
@@ -1124,19 +1125,24 @@ class TestGnomeExtensionManager(unittest.TestCase):
 
     def test_install_and_lifecycle(self):
         from core import gnome_extension
-        # Test install
-        ok, msg = gnome_extension.install_extension()
-        self.assertTrue(ok)
-        self.assertTrue(gnome_extension.is_extension_installed())
+        initial_state = gnome_extension.is_extension_enabled()
+        try:
+            # Test install
+            ok, msg = gnome_extension.install_extension()
+            self.assertTrue(ok)
+            self.assertTrue(gnome_extension.is_extension_installed())
 
-        # Test enable
-        ok, msg = gnome_extension.enable_extension()
-        self.assertTrue(ok)
-        self.assertTrue(gnome_extension.is_extension_enabled())
+            # Test enable
+            ok, msg = gnome_extension.enable_extension()
+            self.assertTrue(ok)
+            self.assertTrue(gnome_extension.is_extension_enabled())
 
-        # Test disable
-        ok = gnome_extension.disable_extension()
-        self.assertTrue(ok)
+            # Test disable
+            ok = gnome_extension.disable_extension()
+            self.assertTrue(ok)
+        finally:
+            if initial_state:
+                gnome_extension.enable_extension()
 
 
 class TestSpeedBenchmark(unittest.TestCase):

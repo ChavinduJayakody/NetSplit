@@ -37,7 +37,7 @@ def is_autostart_enabled() -> bool:
         try:
             with open(autostart_path, "r", encoding="utf-8") as f:
                 content = f.read()
-                if "X-GNOME-Autostart-enabled=false" in content:
+                if "X-GNOME-Autostart-enabled=false" in content or "Hidden=true" in content:
                     return False
             return True
         except Exception:
@@ -75,16 +75,23 @@ def set_autostart(enabled: bool) -> bool:
 
         if enabled:
             os.makedirs(autostart_dir, exist_ok=True)
+            root = get_project_root()
             launcher = get_launcher_path()
+            icon_path = os.path.join(root, "assets", "netsplit.png")
+            if not os.path.exists(icon_path):
+                icon_path = "netsplit"
             content = f"""[Desktop Entry]
 Type=Application
 Name=NetSplit
 Comment=Cross-Platform Network & VPN Traffic Monitor
 Exec={launcher} --minimized
-Icon=netsplit
+Path={root}
+Icon={icon_path}
 Terminal=false
 Categories=Network;Monitor;System;
 X-GNOME-Autostart-enabled=true
+StartupNotify=false
+X-GNOME-Autostart-Delay=2
 """
             try:
                 with open(autostart_path, "w", encoding="utf-8") as f:
