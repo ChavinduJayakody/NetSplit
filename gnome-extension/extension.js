@@ -374,7 +374,8 @@ class NetSplitIndicator extends PanelMenu.Button {
             }
             const now = GLib.get_monotonic_time() / 1000000;
             const formatBytes = (bytes) => {
-                if (bytes < 1024) return bytes + ' B';
+                if (!bytes || isNaN(bytes) || bytes <= 0) return '0 B';
+                if (bytes < 1024) return Math.round(bytes) + ' B';
                 if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
                 if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
                 return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
