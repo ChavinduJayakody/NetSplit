@@ -70,7 +70,9 @@ CSS_STYLES = """
     font-weight: 800;
     color: #38bdf8; /* Sky Blue */
     font-family: 'JetBrains Mono', monospace;
+    font-feature-settings: "tnum" 1;
     letter-spacing: -0.02em;
+    min-width: 170px;
 }
 
 .speed-value-vpn {
@@ -78,7 +80,9 @@ CSS_STYLES = """
     font-weight: 800;
     color: #c084fc; /* Bright Purple */
     font-family: 'JetBrains Mono', monospace;
+    font-feature-settings: "tnum" 1;
     letter-spacing: -0.02em;
+    min-width: 170px;
 }
 
 .speed-value-total {
@@ -86,13 +90,16 @@ CSS_STYLES = """
     font-weight: 800;
     color: #34d399; /* Emerald Green */
     font-family: 'JetBrains Mono', monospace;
+    font-feature-settings: "tnum" 1;
     letter-spacing: -0.02em;
+    min-width: 170px;
 }
 
 .speed-sub {
     font-size: 9.5pt;
     color: alpha(@window_fg_color, 0.6);
     font-family: 'JetBrains Mono', monospace;
+    font-feature-settings: "tnum" 1;
 }
 
 .badge-vpn-active {
@@ -159,13 +166,16 @@ CSS_STYLES = """
     border-radius: 16px;
     padding: 16px 20px;
     margin: 2px;
+    min-width: 200px;
 }
 
 .bench-speed-large {
     font-size: 28pt;
     font-weight: 800;
     font-family: 'JetBrains Mono', monospace;
+    font-feature-settings: "tnum" 1;
     letter-spacing: -0.03em;
+    min-width: 160px;
 }
 
 .bench-meta-chip {
@@ -557,8 +567,11 @@ class MainWindow(Adw.ApplicationWindow):
 
         self.norm_down_lbl = Gtk.Label(label="0.0 KB/s", halign=Gtk.Align.START)
         self.norm_down_lbl.add_css_class("speed-value-normal")
+        self.norm_down_lbl.set_width_chars(11)
+        self.norm_down_lbl.set_xalign(0.0)
         self.norm_sub_lbl = Gtk.Label(label="↓ 0.0 KB/s   ↑ 0.0 KB/s", halign=Gtk.Align.START)
         self.norm_sub_lbl.add_css_class("speed-sub")
+        self.norm_sub_lbl.set_xalign(0.0)
         self.norm_today_lbl = Gtk.Label(label="Today: 0 B", halign=Gtk.Align.START)
         self.norm_today_lbl.add_css_class("info-label")
         c1.append(h1)
@@ -578,8 +591,11 @@ class MainWindow(Adw.ApplicationWindow):
         h2.append(self.card_vpn_title)
         self.vpn_down_lbl = Gtk.Label(label="0.0 KB/s", halign=Gtk.Align.START)
         self.vpn_down_lbl.add_css_class("speed-value-vpn")
+        self.vpn_down_lbl.set_width_chars(11)
+        self.vpn_down_lbl.set_xalign(0.0)
         self.vpn_sub_lbl = Gtk.Label(label="↓ 0.0 KB/s   ↑ 0.0 KB/s", halign=Gtk.Align.START)
         self.vpn_sub_lbl.add_css_class("speed-sub")
+        self.vpn_sub_lbl.set_xalign(0.0)
         self.vpn_today_lbl = Gtk.Label(label="Today: 0 B", halign=Gtk.Align.START)
         self.vpn_today_lbl.add_css_class("info-label")
         c2.append(h2)
@@ -599,8 +615,11 @@ class MainWindow(Adw.ApplicationWindow):
         h3.append(t3)
         self.tot_down_lbl = Gtk.Label(label="0.0 KB/s", halign=Gtk.Align.START)
         self.tot_down_lbl.add_css_class("speed-value-total")
+        self.tot_down_lbl.set_width_chars(11)
+        self.tot_down_lbl.set_xalign(0.0)
         self.tot_sub_lbl = Gtk.Label(label="↓ 0.0 KB/s   ↑ 0.0 KB/s", halign=Gtk.Align.START)
         self.tot_sub_lbl.add_css_class("speed-sub")
+        self.tot_sub_lbl.set_xalign(0.0)
         self.tot_today_lbl = Gtk.Label(label="Today: 0 B", halign=Gtk.Align.START)
         self.tot_today_lbl.add_css_class("info-label")
         c3.append(h3)
@@ -900,6 +919,8 @@ class MainWindow(Adw.ApplicationWindow):
         lbl_dl_hdr.add_css_class("card-title")
         self.lbl_gauge_dl = Gtk.Label(label="--", halign=Gtk.Align.START)
         self.lbl_gauge_dl.add_css_class("speed-value-normal")
+        self.lbl_gauge_dl.set_width_chars(11)
+        self.lbl_gauge_dl.set_xalign(0.0)
         self.lbl_gauge_dl_sub = Gtk.Label(label="Loaded Latency: --", halign=Gtk.Align.START)
         self.lbl_gauge_dl_sub.add_css_class("speed-sub")
         card_dl.append(lbl_dl_hdr)
@@ -914,6 +935,8 @@ class MainWindow(Adw.ApplicationWindow):
         lbl_ul_hdr.add_css_class("card-title")
         self.lbl_gauge_ul = Gtk.Label(label="--", halign=Gtk.Align.START)
         self.lbl_gauge_ul.add_css_class("speed-value-vpn")
+        self.lbl_gauge_ul.set_width_chars(11)
+        self.lbl_gauge_ul.set_xalign(0.0)
         self.lbl_gauge_ul_sub = Gtk.Label(label="Loaded Latency: --", halign=Gtk.Align.START)
         self.lbl_gauge_ul_sub.add_css_class("speed-sub")
         card_ul.append(lbl_ul_hdr)
@@ -928,6 +951,8 @@ class MainWindow(Adw.ApplicationWindow):
         lbl_p_hdr.add_css_class("card-title")
         self.lbl_gauge_ping = Gtk.Label(label="--", halign=Gtk.Align.START)
         self.lbl_gauge_ping.add_css_class("speed-value-total")
+        self.lbl_gauge_ping.set_width_chars(11)
+        self.lbl_gauge_ping.set_xalign(0.0)
         self.lbl_gauge_ping_sub = Gtk.Label(label="Jitter: --", halign=Gtk.Align.START)
         self.lbl_gauge_ping_sub.add_css_class("speed-sub")
         card_ping.append(lbl_p_hdr)
@@ -1163,6 +1188,8 @@ class MainWindow(Adw.ApplicationWindow):
         lbl_d_t.add_css_class("bench-meta-title")
         self.lbl_proc_agg_down = Gtk.Label(label="0 B/s", halign=Gtk.Align.START)
         self.lbl_proc_agg_down.add_css_class("speed-value-normal")
+        self.lbl_proc_agg_down.set_width_chars(11)
+        self.lbl_proc_agg_down.set_xalign(0.0)
         box_down.append(lbl_d_t)
         box_down.append(self.lbl_proc_agg_down)
         stats_grid.attach(box_down, 0, 0, 1, 1)
@@ -1173,6 +1200,8 @@ class MainWindow(Adw.ApplicationWindow):
         lbl_u_t.add_css_class("bench-meta-title")
         self.lbl_proc_agg_up = Gtk.Label(label="0 B/s", halign=Gtk.Align.START)
         self.lbl_proc_agg_up.add_css_class("speed-value-vpn")
+        self.lbl_proc_agg_up.set_width_chars(11)
+        self.lbl_proc_agg_up.set_xalign(0.0)
         box_up.append(lbl_u_t)
         box_up.append(self.lbl_proc_agg_up)
         stats_grid.attach(box_up, 1, 0, 1, 1)
@@ -1183,6 +1212,8 @@ class MainWindow(Adw.ApplicationWindow):
         lbl_tot_t.add_css_class("bench-meta-title")
         self.lbl_proc_agg_tot = Gtk.Label(label="0 B/s", halign=Gtk.Align.START)
         self.lbl_proc_agg_tot.add_css_class("speed-value-total")
+        self.lbl_proc_agg_tot.set_width_chars(11)
+        self.lbl_proc_agg_tot.set_xalign(0.0)
         box_tot.append(lbl_tot_t)
         box_tot.append(self.lbl_proc_agg_tot)
         stats_grid.attach(box_tot, 2, 0, 1, 1)

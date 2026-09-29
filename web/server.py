@@ -80,7 +80,22 @@ class NetworkMonitorHandler(BaseHTTPRequestHandler):
         else:
             self.send_error(404, "Not Found")
 
+    def _is_authorized_origin(self) -> bool:
+        origin = self.headers.get("Origin", "")
+        referer = self.headers.get("Referer", "")
+        # Non-browser clients (curl, native apps) may omit Origin/Referer
+        if not origin and not referer:
+            return True
+        for val in (origin, referer):
+            if val and not (val.startswith("http://localhost:") or val.startswith("http://127.0.0.1:")):
+                return False
+        return True
+
     def do_POST(self):
+        if not self._is_authorized_origin():
+            self.send_error(403, "Forbidden: Cross-site request rejected")
+            return
+
         clean_path = self.path.split("?")[0].split("#")[0]
         if not self.collector:
             self.send_error(500, "Collector not attached")

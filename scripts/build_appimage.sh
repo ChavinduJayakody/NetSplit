@@ -38,14 +38,18 @@ echo "[*] Populating AppDir structure..."
 mkdir -p "$APP_DIR/usr/bin"
 mkdir -p "$APP_DIR/usr/share/applications"
 mkdir -p "$APP_DIR/usr/share/icons/hicolor/scalable/apps"
-mkdir -p "$APP_DIR/usr/share/icons/hicolor/256x256/apps"
 
 cp "$PROJECT_ROOT/dist/NetSplit" "$APP_DIR/usr/bin/netsplit"
 cp "$PROJECT_ROOT/netsplit.desktop" "$APP_DIR/usr/share/applications/netsplit.desktop"
 cp "$PROJECT_ROOT/netsplit.desktop" "$APP_DIR/netsplit.desktop"
 cp "$PROJECT_ROOT/assets/netsplit.svg" "$APP_DIR/usr/share/icons/hicolor/scalable/apps/netsplit.svg"
 cp "$PROJECT_ROOT/assets/netsplit.svg" "$APP_DIR/netsplit.svg"
-cp "$PROJECT_ROOT/assets/netsplit_256.png" "$APP_DIR/usr/share/icons/hicolor/256x256/apps/netsplit.png"
+for s in 16 24 32 48 64 128 256 512; do
+    if [ -f "$PROJECT_ROOT/assets/netsplit_${s}.png" ]; then
+        mkdir -p "$APP_DIR/usr/share/icons/hicolor/${s}x${s}/apps"
+        cp "$PROJECT_ROOT/assets/netsplit_${s}.png" "$APP_DIR/usr/share/icons/hicolor/${s}x${s}/apps/netsplit.png"
+    fi
+done
 cp "$PROJECT_ROOT/assets/netsplit_256.png" "$APP_DIR/.DirIcon"
 
 # 3. Create AppRun launcher

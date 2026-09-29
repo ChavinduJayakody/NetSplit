@@ -54,11 +54,15 @@ EOF
     sed -i 's|^Comment=.*|Comment=Real-time split VPN / Wi-Fi network traffic monitor|' \
         "${pkgdir}/usr/share/applications/netsplit.desktop"
 
-    # Icons
+    # Icons (Scalable SVG and multiple PNG resolutions)
     install -Dm644 assets/netsplit.svg \
         "${pkgdir}/usr/share/icons/hicolor/scalable/apps/netsplit.svg"
-    install -Dm644 assets/netsplit_256.png \
-        "${pkgdir}/usr/share/icons/hicolor/256x256/apps/netsplit.png"
+    for s in 16 24 32 48 64 128 256 512; do
+        if [ -f "assets/netsplit_${s}.png" ]; then
+            install -Dm644 "assets/netsplit_${s}.png" \
+                "${pkgdir}/usr/share/icons/hicolor/${s}x${s}/apps/netsplit.png"
+        fi
+    done
 
     # License
     install -Dm644 LICENSE \

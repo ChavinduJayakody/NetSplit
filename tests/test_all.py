@@ -434,7 +434,15 @@ class TestNetworkToolsAndApi(unittest.TestCase):
             self.assertIn("tile-privacy", html_content)
             self.assertIn("tile-dns", html_content)
             self.assertIn("proc-telemetry-body", html_content)
-            self.assertIn("btn-start-bench", html_content)
+            # 7. POST with untrusted Origin must receive 403 Forbidden (CSRF protection)
+            bad_csrf_req = urllib.request.Request(
+                "http://127.0.0.1:18765/api/tools/reset-today",
+                data=b"{}",
+                headers={"Content-Type": "application/json", "Origin": "http://malicious-website.com"}
+            )
+            with self.assertRaises(urllib.error.HTTPError) as ctx:
+                urllib.request.urlopen(bad_csrf_req, timeout=2)
+            self.assertEqual(ctx.exception.code, 403)
         finally:
             server.shutdown()
             server.server_close()

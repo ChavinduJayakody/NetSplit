@@ -105,7 +105,6 @@ jobs:
           mkdir -p build_appimage/NetSplit.AppDir/usr/bin
           mkdir -p build_appimage/NetSplit.AppDir/usr/share/applications
           mkdir -p build_appimage/NetSplit.AppDir/usr/share/icons/hicolor/scalable/apps
-          mkdir -p build_appimage/NetSplit.AppDir/usr/share/icons/hicolor/256x256/apps
 
           APP_DIR="build_appimage/NetSplit.AppDir"
           cp dist/NetSplit "$APP_DIR/usr/bin/netsplit"
@@ -113,7 +112,12 @@ jobs:
           cp netsplit.desktop "$APP_DIR/netsplit.desktop"
           cp assets/netsplit.svg "$APP_DIR/usr/share/icons/hicolor/scalable/apps/netsplit.svg"
           cp assets/netsplit.svg "$APP_DIR/netsplit.svg"
-          cp assets/netsplit_256.png "$APP_DIR/usr/share/icons/hicolor/256x256/apps/netsplit.png"
+          for s in 16 24 32 48 64 128 256 512; do
+            if [ -f "assets/netsplit_${s}.png" ]; then
+              mkdir -p "$APP_DIR/usr/share/icons/hicolor/${s}x${s}/apps"
+              cp "assets/netsplit_${s}.png" "$APP_DIR/usr/share/icons/hicolor/${s}x${s}/apps/netsplit.png"
+            fi
+          done
           cp assets/netsplit_256.png "$APP_DIR/.DirIcon"
 
           cat << 'EOF' > "$APP_DIR/AppRun"

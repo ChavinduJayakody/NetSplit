@@ -52,8 +52,10 @@ window.hud-floating-window {
 .hud-primary {
     font-size: 12.5px;
     font-weight: 700;
-    font-family: monospace;
+    font-family: 'JetBrains Mono', monospace;
+    font-feature-settings: "tnum" 1;
     color: #ffffff;
+    min-width: 165px;
 }
 
 .hud-secondary {
@@ -137,10 +139,12 @@ class FloatingHudWindow(Gtk.Window):
         # 2. Telemetry Text Labels
         labels_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         labels_box.set_valign(Gtk.Align.CENTER)
+        labels_box.set_size_request(165, -1)
 
         self.primary_lbl = Gtk.Label(label="↓ 0 B/s   ↑ 0 B/s")
         self.primary_lbl.add_css_class("hud-primary")
         self.primary_lbl.set_xalign(0.0)
+        self.primary_lbl.set_width_chars(18)
         labels_box.append(self.primary_lbl)
 
         self.sub_lbl = Gtk.Label(label="NetSplit • Direct")
