@@ -46,11 +46,21 @@ jobs:
         shell: bash
         run: |
           mkdir -p release_assets
-          cp dist/NetSplit.exe release_assets/NetSplit-Windows-x64.exe
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ github.event.inputs.version }}"
+          elif [[ "${{ github.ref_name }}" =~ ^v[0-9] ]]; then
+            TAG="${{ github.ref_name }}"
+          else
+            TAG="v$(python -c "import re; print(re.search(r'pkgver=(.*)', open('packaging/PKGBUILD').read()).group(1).strip())")"
+          fi
+          VER_NUM="${TAG#v}"
+          cp dist/NetSplit.exe "release_assets/NetSplit-${VER_NUM}.exe"
+          cp dist/NetSplit.exe "release_assets/NetSplit-${TAG}-Windows-x64.exe"
           cd release_assets
-          sha256sum NetSplit-Windows-x64.exe > NetSplit-Windows-x64.exe.sha256
+          sha256sum "NetSplit-${VER_NUM}.exe" > "NetSplit-${VER_NUM}.exe.sha256"
+          sha256sum "NetSplit-${TAG}-Windows-x64.exe" > "NetSplit-${TAG}-Windows-x64.exe.sha256"
           echo "Windows binary SHA-256:"
-          cat NetSplit-Windows-x64.exe.sha256
+          cat *.sha256
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
@@ -297,7 +307,7 @@ jobs:
           tag_name: ${{ steps.release_tag.outputs.tag }}
           name: NetSplit ${{ steps.release_tag.outputs.tag }}
           files: |
-            release_files/NetSplit-Windows-x64.exe
+            release_files/NetSplit-*.exe
             release_files/NetSplit-Linux-x86_64.AppImage
             release_files/NetSplit-Linux-x86_64.pkg.tar.zst
             release_files/netsplit-hud@chavindujayakody.github.io.shell-extension.zip

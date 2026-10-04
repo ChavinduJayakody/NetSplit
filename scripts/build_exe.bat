@@ -24,9 +24,10 @@ echo [*] Running PyInstaller...
 pyinstaller --clean --noconfirm packaging\NetSplit.spec
 
 if %errorlevel% equ 0 (
+    copy /y "dist\NetSplit.exe" "dist\NetSplit-1.7.1.exe" >nul 2>&1
     echo =======================================================
     echo   [SUCCESS] Standalone Executable built at:
-    echo   dist\NetSplit.exe
+    echo   dist\NetSplit-1.7.1.exe
     echo =======================================================
 ) else (
     echo [!] Build failed with exit code %errorlevel%
