@@ -136,6 +136,13 @@ class NetworkCollector:
             start_time = time.monotonic()
             self._sample_traffic(start_time)
 
+            # Sample process socket telemetry in background thread to avoid GUI thread block
+            if hasattr(self, "process_monitor") and self.process_monitor:
+                try:
+                    self.process_monitor.sample()
+                except Exception:
+                    pass
+
             # Physical link parameters update every 5 seconds (saves CPU vs 3s)
             if start_time - self.last_wifi_check > 5.0:
                 active_iface, gw = get_default_gateway_and_iface()

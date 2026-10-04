@@ -256,11 +256,64 @@
       gap: 16px;
       margin-bottom: 18px;
     }
+
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    @media (max-width: 960px) and (min-width: 641px) {
+      .grid-3 {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .grid-3 > .card:last-child {
+        grid-column: span 2;
+      }
+    }
+
     @media (max-width: 900px) {
-      .grid-3 { grid-template-columns: 1fr; }
-      .grid-2 { grid-template-columns: 1fr; }
-      header { flex-direction: column; align-items: stretch; }
-      .tab-nav { overflow-x: auto; }
+      header {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .tab-nav {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+    }
+
+    @media (max-width: 640px) {
+      body {
+        padding: 12px 14px;
+      }
+      .grid-3 {
+        grid-template-columns: 1fr;
+      }
+      .grid-2 {
+        grid-template-columns: 1fr;
+      }
+      .card {
+        padding: 16px;
+      }
+      .speed-number {
+        font-size: 1.8rem;
+        min-width: auto;
+      }
+      .bench-hero-top {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .btn-bench-start {
+        width: 100%;
+        justify-content: center;
+      }
+      .bench-progress-wrapper {
+        width: 100%;
+      }
+      .chart-container {
+        height: 180px;
+      }
     }
 
     /* Real-Time Chart */
@@ -935,17 +988,19 @@
           <div style="font-size: 0.78rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">
             Routed Applications
           </div>
-          <table class="proc-table">
-            <thead>
-              <tr>
-                <th>Process</th>
-                <th style="text-align: right;">Total / Conns</th>
-              </tr>
-            </thead>
-            <tbody id="app-table-body">
-              <tr><td colspan="2" style="color: var(--text-muted);">No app data yet</td></tr>
-            </tbody>
-          </table>
+          <div class="table-responsive">
+            <table class="proc-table">
+              <thead>
+                <tr>
+                  <th>Process</th>
+                  <th style="text-align: right;">Total / Conns</th>
+                </tr>
+              </thead>
+              <tbody id="app-table-body">
+                <tr><td colspan="2" style="color: var(--text-muted);">No app data yet</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -981,20 +1036,22 @@
 
       <!-- Application Live Table -->
       <div class="card" style="padding: 12px 16px;">
-        <table class="proc-table">
-          <thead>
-            <tr>
-              <th>Application</th>
-              <th style="text-align: center;">Sockets</th>
-              <th style="text-align: right;">Download Rate</th>
-              <th style="text-align: right;">Upload Rate</th>
-              <th style="text-align: right;">Session Total</th>
-            </tr>
-          </thead>
-          <tbody id="proc-telemetry-body">
-            <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">Monitoring system network socket activity...</td></tr>
-          </tbody>
-        </table>
+        <div class="table-responsive">
+          <table class="proc-table">
+            <thead>
+              <tr>
+                <th>Application</th>
+                <th style="text-align: center;">Sockets</th>
+                <th style="text-align: right;">Download Rate</th>
+                <th style="text-align: right;">Upload Rate</th>
+                <th style="text-align: right;">Session Total</th>
+              </tr>
+            </thead>
+            <tbody id="proc-telemetry-body">
+              <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">Monitoring system network socket activity...</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -1261,7 +1318,7 @@
           <img src="/static/netsplit.svg" width="44" height="44" style="border-radius: 10px;" alt="NetSplit" />
           <div>
             <h3 style="font-size: 1.1rem; font-weight: 700;">NetSplit</h3>
-            <p style="font-size: 0.82rem; color: var(--text-muted);" id="about-version">v1.7.0</p>
+            <p style="font-size: 0.82rem; color: var(--text-muted);" id="about-version">v1.7.1</p>
           </div>
         </div>
       </div>

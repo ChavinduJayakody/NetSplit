@@ -11,7 +11,7 @@ try:
     import gi
     gi.require_version('Gtk', '4.0')
     gi.require_version('Adw', '1')
-    from gi.repository import Gtk, Gdk, Adw, GLib, Gio
+    from gi.repository import Gtk, Gdk, Adw, GLib, Gio, GObject, Pango
     import cairo
     HAS_GTK = True
 except (ImportError, ValueError):
@@ -28,7 +28,7 @@ except (ImportError, ValueError):
             return _Dummy
         def __call__(self, *args, **kwargs):
             return _Dummy()
-    Gtk = Gdk = Adw = GLib = Gio = cairo = _DummyModule()
+    Gtk = Gdk = Adw = GLib = Gio = GObject = Pango = cairo = _DummyModule()
 
 
 
@@ -334,6 +334,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.app = app
         self.collector = collector
         self.set_default_size(880, 720)
+        self.set_size_request(360, 480)
 
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.assets_dir = os.path.join(project_root, "assets")
@@ -419,6 +420,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.vpn_badge = Gtk.Label(label="Checking...")
         self.vpn_badge.set_valign(Gtk.Align.CENTER)
         self.vpn_badge.add_css_class("badge-vpn-inactive")
+        self.vpn_badge.set_ellipsize(Pango.EllipsizeMode.END)
         header.pack_end(self.vpn_badge)
 
         # Actions for primary menu on top
@@ -499,6 +501,111 @@ class MainWindow(Adw.ApplicationWindow):
 
         main_box.append(self.view_stack)
 
+        # Bottom switcher bar for compact/mobile viewports
+        self.switcher_bar = Adw.ViewSwitcherBar()
+        self.switcher_bar.set_stack(self.view_stack)
+        switcher_title.bind_property(
+            "title-visible",
+            self.switcher_bar,
+            "reveal",
+            GObject.BindingFlags.SYNC_CREATE
+        )
+        main_box.append(self.switcher_bar)
+
+        # Responsive layout breakpoint for compact screens
+        if hasattr(Adw, "Breakpoint") and hasattr(Adw, "breakpoint_condition_parse"):
+            try:
+                bp = Adw.Breakpoint.new(Adw.breakpoint_condition_parse("max-width: 620sp"))
+                bp.add_setter(self.switcher_bar, "reveal", True)
+                bp.add_setter(switcher_title, "title-visible", True)
+                bp.connect("apply", self._on_breakpoint_applied)
+                bp.connect("unapply", self._on_breakpoint_unapplied)
+                self.add_breakpoint(bp)
+            except Exception:
+                pass
+
+    def _on_breakpoint_applied(self, breakpoint):
+        try:
+            # Overview page cards -> vertical stack
+            if hasattr(self, "cards_grid") and hasattr(self, "c1"):
+                self.cards_grid.remove(self.c1)
+                self.cards_grid.remove(self.c2)
+                self.cards_grid.remove(self.c3)
+                self.cards_grid.attach(self.c1, 0, 0, 1, 1)
+                self.cards_grid.attach(self.c2, 0, 1, 1, 1)
+                self.cards_grid.attach(self.c3, 0, 2, 1, 1)
+            # Overview pills strip -> vertical stack
+            if hasattr(self, "strip"):
+                self.strip.set_orientation(Gtk.Orientation.VERTICAL)
+
+            # Benchmark location ribbon -> vertical stack
+            if hasattr(self, "loc_grid") and hasattr(self, "chip_client"):
+                self.loc_grid.remove(self.chip_client)
+                self.loc_grid.remove(self.chip_server)
+                self.loc_grid.attach(self.chip_client, 0, 0, 1, 1)
+                self.loc_grid.attach(self.chip_server, 0, 1, 1, 1)
+
+            # Benchmark gauges -> vertical stack
+            if hasattr(self, "gauges_grid") and hasattr(self, "card_dl"):
+                self.gauges_grid.remove(self.card_dl)
+                self.gauges_grid.remove(self.card_ul)
+                self.gauges_grid.remove(self.card_ping)
+                self.gauges_grid.attach(self.card_dl, 0, 0, 1, 1)
+                self.gauges_grid.attach(self.card_ul, 0, 1, 1, 1)
+                self.gauges_grid.attach(self.card_ping, 0, 2, 1, 1)
+
+            # Process telemetry stats -> vertical stack
+            if hasattr(self, "stats_grid") and hasattr(self, "box_down"):
+                self.stats_grid.remove(self.box_down)
+                self.stats_grid.remove(self.box_up)
+                self.stats_grid.remove(self.box_tot)
+                self.stats_grid.attach(self.box_down, 0, 0, 1, 1)
+                self.stats_grid.attach(self.box_up, 0, 1, 1, 1)
+                self.stats_grid.attach(self.box_tot, 0, 2, 1, 1)
+        except Exception:
+            pass
+
+    def _on_breakpoint_unapplied(self, breakpoint):
+        try:
+            # Overview page cards -> 3 horizontal columns
+            if hasattr(self, "cards_grid") and hasattr(self, "c1"):
+                self.cards_grid.remove(self.c1)
+                self.cards_grid.remove(self.c2)
+                self.cards_grid.remove(self.c3)
+                self.cards_grid.attach(self.c1, 0, 0, 1, 1)
+                self.cards_grid.attach(self.c2, 1, 0, 1, 1)
+                self.cards_grid.attach(self.c3, 2, 0, 1, 1)
+            # Overview pills strip -> horizontal
+            if hasattr(self, "strip"):
+                self.strip.set_orientation(Gtk.Orientation.HORIZONTAL)
+
+            # Benchmark location ribbon -> 2 horizontal columns
+            if hasattr(self, "loc_grid") and hasattr(self, "chip_client"):
+                self.loc_grid.remove(self.chip_client)
+                self.loc_grid.remove(self.chip_server)
+                self.loc_grid.attach(self.chip_client, 0, 0, 1, 1)
+                self.loc_grid.attach(self.chip_server, 1, 0, 1, 1)
+
+            # Benchmark gauges -> 3 horizontal columns
+            if hasattr(self, "gauges_grid") and hasattr(self, "card_dl"):
+                self.gauges_grid.remove(self.card_dl)
+                self.gauges_grid.remove(self.card_ul)
+                self.gauges_grid.remove(self.card_ping)
+                self.gauges_grid.attach(self.card_dl, 0, 0, 1, 1)
+                self.gauges_grid.attach(self.card_ul, 1, 0, 1, 1)
+                self.gauges_grid.attach(self.card_ping, 2, 0, 1, 1)
+
+            # Process telemetry stats -> 3 horizontal columns
+            if hasattr(self, "stats_grid") and hasattr(self, "box_down"):
+                self.stats_grid.remove(self.box_down)
+                self.stats_grid.remove(self.box_up)
+                self.stats_grid.remove(self.box_tot)
+                self.stats_grid.attach(self.box_down, 0, 0, 1, 1)
+                self.stats_grid.attach(self.box_up, 1, 0, 1, 1)
+                self.stats_grid.attach(self.box_tot, 2, 0, 1, 1)
+        except Exception:
+            pass
+
     # --- Page 1: Overview ---
     def _build_overview_page(self) -> Gtk.Widget:
         scroller = Gtk.ScrolledWindow()
@@ -516,6 +623,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         # Quick Status Strip
         strip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10, homogeneous=True)
+        self.strip = strip
 
         # Pill 1: Wi-Fi / LAN Quick
         p1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -523,6 +631,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.pill_wifi_icon = Gtk.Image.new_from_icon_name("network-wireless-symbolic")
         self.pill_wifi_lbl = Gtk.Label(label="Checking...", halign=Gtk.Align.START)
         self.pill_wifi_lbl.add_css_class("status-pill-val")
+        self.pill_wifi_lbl.set_ellipsize(Pango.EllipsizeMode.END)
         p1.append(self.pill_wifi_icon)
         p1.append(self.pill_wifi_lbl)
         strip.append(p1)
@@ -533,6 +642,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.pill_ping_icon = Gtk.Image.new_from_icon_name("preferences-system-time-symbolic")
         self.pill_ping_lbl = Gtk.Label(label="-- ms", halign=Gtk.Align.START)
         self.pill_ping_lbl.add_css_class("status-pill-val")
+        self.pill_ping_lbl.set_ellipsize(Pango.EllipsizeMode.END)
         p2.append(self.pill_ping_icon)
         p2.append(self.pill_ping_lbl)
         strip.append(p2)
@@ -543,6 +653,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.pill_ip_icon = Gtk.Image.new_from_icon_name("network-workgroup-symbolic")
         self.pill_ip_lbl = Gtk.Label(label="Checking...", halign=Gtk.Align.START)
         self.pill_ip_lbl.add_css_class("status-pill-val")
+        self.pill_ip_lbl.set_ellipsize(Pango.EllipsizeMode.END)
         p3.append(self.pill_ip_icon)
         p3.append(self.pill_ip_lbl)
         p3.set_tooltip_text("Click to toggle IP mask / reveal")
@@ -554,15 +665,18 @@ class MainWindow(Adw.ApplicationWindow):
         box.append(strip)
 
         # 3 Main Speed Cards
-        cards_grid = Gtk.Grid(column_spacing=12, row_spacing=12, column_homogeneous=True)
+        self.cards_grid = Gtk.Grid(column_spacing=12, row_spacing=12, column_homogeneous=True)
+        cards_grid = self.cards_grid
 
         # Card 1: Direct Network (LAN or Wi-Fi)
-        c1 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.c1 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        c1 = self.c1
         c1.add_css_class("metric-card")
         h1 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         self.card_direct_icon = Gtk.Image.new_from_icon_name("network-wired-symbolic")
         self.card_direct_title = Gtk.Label(label="Direct", halign=Gtk.Align.START)
         self.card_direct_title.add_css_class("card-title")
+        self.card_direct_title.set_ellipsize(Pango.EllipsizeMode.END)
         h1.append(self.card_direct_icon)
         h1.append(self.card_direct_title)
 
@@ -582,12 +696,14 @@ class MainWindow(Adw.ApplicationWindow):
         cards_grid.attach(c1, 0, 0, 1, 1)
 
         # Card 2: VPN / Proxy
-        c2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.c2 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        c2 = self.c2
         c2.add_css_class("metric-card")
         h2 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         img_vpn = Gtk.Image.new_from_icon_name("network-vpn-symbolic")
         self.card_vpn_title = Gtk.Label(label="VPN", halign=Gtk.Align.START)
         self.card_vpn_title.add_css_class("card-title")
+        self.card_vpn_title.set_ellipsize(Pango.EllipsizeMode.END)
         h2.append(img_vpn)
         h2.append(self.card_vpn_title)
         self.vpn_down_lbl = Gtk.Label(label="0.0 KB/s", halign=Gtk.Align.START)
@@ -606,7 +722,8 @@ class MainWindow(Adw.ApplicationWindow):
         cards_grid.attach(c2, 1, 0, 1, 1)
 
         # Card 3: Total
-        c3 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        self.c3 = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        c3 = self.c3
         c3.add_css_class("metric-card")
         h3 = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         img_tot = Gtk.Image.new_from_icon_name("network-transmit-receive-symbolic")
@@ -775,6 +892,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.row_vpn_state.add_prefix(Gtk.Image.new_from_icon_name("network-vpn-symbolic"))
         self.val_vpn_state = Gtk.Label(label="Checking...", halign=Gtk.Align.END)
         self.val_vpn_state.add_css_class("info-val")
+        self.val_vpn_state.set_ellipsize(Pango.EllipsizeMode.END)
         self.row_vpn_state.add_suffix(self.val_vpn_state)
         self.vpn_group.add(self.row_vpn_state)
 
@@ -782,6 +900,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.row_vpn_client.add_prefix(Gtk.Image.new_from_icon_name("application-x-executable-symbolic"))
         self.val_vpn_client = Gtk.Label(label="None", halign=Gtk.Align.END)
         self.val_vpn_client.add_css_class("info-val")
+        self.val_vpn_client.set_ellipsize(Pango.EllipsizeMode.END)
         self.row_vpn_client.add_suffix(self.val_vpn_client)
         self.vpn_group.add(self.row_vpn_client)
 
@@ -789,6 +908,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.row_vpn_prof.add_prefix(Gtk.Image.new_from_icon_name("network-workgroup-symbolic"))
         self.val_vpn_prof = Gtk.Label(label="None", halign=Gtk.Align.END)
         self.val_vpn_prof.add_css_class("info-val")
+        self.val_vpn_prof.set_ellipsize(Pango.EllipsizeMode.END)
         self.row_vpn_prof.add_suffix(self.val_vpn_prof)
         self.vpn_group.add(self.row_vpn_prof)
 
@@ -796,6 +916,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.row_vpn_tun.add_prefix(Gtk.Image.new_from_icon_name("network-wired-symbolic"))
         self.val_vpn_tun = Gtk.Label(label="None", halign=Gtk.Align.END)
         self.val_vpn_tun.add_css_class("info-val")
+        self.val_vpn_tun.set_ellipsize(Pango.EllipsizeMode.END)
         self.row_vpn_tun.add_suffix(self.val_vpn_tun)
         self.vpn_group.add(self.row_vpn_tun)
 
@@ -803,6 +924,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.row_vpn_procs.add_prefix(Gtk.Image.new_from_icon_name("applications-system-symbolic"))
         self.val_vpn_procs = Gtk.Label(label="None", halign=Gtk.Align.END)
         self.val_vpn_procs.add_css_class("info-val")
+        self.val_vpn_procs.set_ellipsize(Pango.EllipsizeMode.END)
         self.row_vpn_procs.add_suffix(self.val_vpn_procs)
         self.vpn_group.add(self.row_vpn_procs)
 
@@ -828,6 +950,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.row_local_ip.add_prefix(Gtk.Image.new_from_icon_name("user-home-symbolic"))
         self.val_local_ip = Gtk.Label(label="127.0.0.1", halign=Gtk.Align.END)
         self.val_local_ip.add_css_class("info-val")
+        self.val_local_ip.set_ellipsize(Pango.EllipsizeMode.END)
         self.btn_reveal_local = Gtk.Button(valign=Gtk.Align.CENTER)
         self.btn_reveal_local.set_icon_name("view-reveal-symbolic")
         self.btn_reveal_local.add_css_class("flat")
@@ -841,6 +964,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.row_public_ip.add_prefix(Gtk.Image.new_from_icon_name("network-workgroup-symbolic"))
         self.val_public_ip = Gtk.Label(label="Checking...", halign=Gtk.Align.END)
         self.val_public_ip.add_css_class("info-val")
+        self.val_public_ip.set_ellipsize(Pango.EllipsizeMode.END)
         self.btn_reveal_public = Gtk.Button(valign=Gtk.Align.CENTER)
         self.btn_reveal_public.set_icon_name("view-reveal-symbolic")
         self.btn_reveal_public.add_css_class("flat")
@@ -872,10 +996,12 @@ class MainWindow(Adw.ApplicationWindow):
         box.set_margin_bottom(24)
 
         # 1. Location & Geo Ribbon (Speedtest / Fast.com style)
-        loc_grid = Gtk.Grid(column_spacing=12, row_spacing=8, column_homogeneous=True)
+        self.loc_grid = Gtk.Grid(column_spacing=12, row_spacing=8, column_homogeneous=True)
+        loc_grid = self.loc_grid
 
         # Left Chip: Client Connection
-        chip_client = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        self.chip_client = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        chip_client = self.chip_client
         chip_client.add_css_class("bench-meta-chip")
         box_c_hdr = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         box_c_hdr.append(Gtk.Image.new_from_icon_name("user-home-symbolic"))
@@ -884,15 +1010,18 @@ class MainWindow(Adw.ApplicationWindow):
         box_c_hdr.append(lbl_c_title)
         self.lbl_bench_client = Gtk.Label(label="Detecting provider...", halign=Gtk.Align.START)
         self.lbl_bench_client.add_css_class("bench-meta-value")
+        self.lbl_bench_client.set_ellipsize(Pango.EllipsizeMode.END)
         self.lbl_bench_client_sub = Gtk.Label(label="Location: Detecting...", halign=Gtk.Align.START)
         self.lbl_bench_client_sub.add_css_class("info-label")
+        self.lbl_bench_client_sub.set_ellipsize(Pango.EllipsizeMode.END)
         chip_client.append(box_c_hdr)
         chip_client.append(self.lbl_bench_client)
         chip_client.append(self.lbl_bench_client_sub)
         loc_grid.attach(chip_client, 0, 0, 1, 1)
 
         # Right Chip: Server Edge
-        chip_server = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        self.chip_server = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        chip_server = self.chip_server
         chip_server.add_css_class("bench-meta-chip")
         box_s_hdr = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         box_s_hdr.append(Gtk.Image.new_from_icon_name("network-server-symbolic"))
@@ -901,8 +1030,10 @@ class MainWindow(Adw.ApplicationWindow):
         box_s_hdr.append(lbl_s_title)
         self.lbl_bench_server = Gtk.Label(label="Cloudflare Global Anycast Edge", halign=Gtk.Align.START)
         self.lbl_bench_server.add_css_class("bench-meta-value")
+        self.lbl_bench_server.set_ellipsize(Pango.EllipsizeMode.END)
         self.lbl_bench_server_sub = Gtk.Label(label="Location: Optimal Server PoP", halign=Gtk.Align.START)
         self.lbl_bench_server_sub.add_css_class("info-label")
+        self.lbl_bench_server_sub.set_ellipsize(Pango.EllipsizeMode.END)
         chip_server.append(box_s_hdr)
         chip_server.append(self.lbl_bench_server)
         chip_server.append(self.lbl_bench_server_sub)
@@ -911,10 +1042,12 @@ class MainWindow(Adw.ApplicationWindow):
         box.append(loc_grid)
 
         # 2. Prominent 3-Card Speed Gauge Grid (Download / Upload / Ping)
-        gauges_grid = Gtk.Grid(column_spacing=12, row_spacing=10, column_homogeneous=True)
+        self.gauges_grid = Gtk.Grid(column_spacing=12, row_spacing=10, column_homogeneous=True)
+        gauges_grid = self.gauges_grid
 
         # Gauge Card 1: Download Throughput
-        card_dl = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.card_dl = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        card_dl = self.card_dl
         card_dl.add_css_class("bench-gauge-card")
         lbl_dl_hdr = Gtk.Label(label="↓ Download", halign=Gtk.Align.START)
         lbl_dl_hdr.add_css_class("card-title")
@@ -930,7 +1063,8 @@ class MainWindow(Adw.ApplicationWindow):
         gauges_grid.attach(card_dl, 0, 0, 1, 1)
 
         # Gauge Card 2: Upload Throughput
-        card_ul = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.card_ul = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        card_ul = self.card_ul
         card_ul.add_css_class("bench-gauge-card")
         lbl_ul_hdr = Gtk.Label(label="↑ Upload", halign=Gtk.Align.START)
         lbl_ul_hdr.add_css_class("card-title")
@@ -946,7 +1080,8 @@ class MainWindow(Adw.ApplicationWindow):
         gauges_grid.attach(card_ul, 1, 0, 1, 1)
 
         # Gauge Card 3: Ping & Jitter
-        card_ping = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        self.card_ping = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+        card_ping = self.card_ping
         card_ping.add_css_class("bench-gauge-card")
         lbl_p_hdr = Gtk.Label(label="⏱ Latency", halign=Gtk.Align.START)
         lbl_p_hdr.add_css_class("card-title")
@@ -974,7 +1109,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.btn_run_bench = Gtk.Button(label="Start Test")
         self.btn_run_bench.add_css_class("suggested-action")
         self.btn_run_bench.add_css_class("pill")
-        self.btn_run_bench.set_size_request(180, 44)
+        self.btn_run_bench.set_size_request(140, 42)
         self.btn_run_bench.connect("clicked", self._on_start_benchmark)
         action_left.append(self.btn_run_bench)
 
@@ -983,6 +1118,7 @@ class MainWindow(Adw.ApplicationWindow):
         self.bench_progress.set_valign(Gtk.Align.CENTER)
         self.bench_progress.set_show_text(True)
         self.bench_progress.set_text("Ready")
+        self.bench_progress.set_ellipsize(Pango.EllipsizeMode.END)
         self.bench_progress.set_fraction(0.0)
         action_left.append(self.bench_progress)
 
@@ -1181,10 +1317,12 @@ class MainWindow(Adw.ApplicationWindow):
         hero_card.append(hero_top)
 
         # 3 Metrics (Download, Upload, Total Throughput)
-        stats_grid = Gtk.Grid(column_spacing=12, row_spacing=8, column_homogeneous=True)
+        self.stats_grid = Gtk.Grid(column_spacing=12, row_spacing=8, column_homogeneous=True)
+        stats_grid = self.stats_grid
 
         # Card 1: Aggregate App Download
-        box_down = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.box_down = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box_down = self.box_down
         lbl_d_t = Gtk.Label(label="↓ Download", halign=Gtk.Align.START)
         lbl_d_t.add_css_class("bench-meta-title")
         self.lbl_proc_agg_down = Gtk.Label(label="0 B/s", halign=Gtk.Align.START)
@@ -1196,7 +1334,8 @@ class MainWindow(Adw.ApplicationWindow):
         stats_grid.attach(box_down, 0, 0, 1, 1)
 
         # Card 2: Aggregate App Upload
-        box_up = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.box_up = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box_up = self.box_up
         lbl_u_t = Gtk.Label(label="↑ Upload", halign=Gtk.Align.START)
         lbl_u_t.add_css_class("bench-meta-title")
         self.lbl_proc_agg_up = Gtk.Label(label="0 B/s", halign=Gtk.Align.START)
@@ -1208,7 +1347,8 @@ class MainWindow(Adw.ApplicationWindow):
         stats_grid.attach(box_up, 1, 0, 1, 1)
 
         # Card 3: Total App Throughput
-        box_tot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        self.box_tot = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        box_tot = self.box_tot
         lbl_tot_t = Gtk.Label(label="Total", halign=Gtk.Align.START)
         lbl_tot_t.add_css_class("bench-meta-title")
         self.lbl_proc_agg_tot = Gtk.Label(label="0 B/s", halign=Gtk.Align.START)
@@ -1612,7 +1752,7 @@ class MainWindow(Adw.ApplicationWindow):
 
         banner_card = Adw.ActionRow(
             title="NetSplit",
-            subtitle="Network &amp; VPN Traffic Monitor • v1.7.0"
+            subtitle="Network &amp; VPN Traffic Monitor • v1.7.1"
         )
         banner_card.set_activatable(False)
         svg_path = os.path.join(self.assets_dir, "netsplit.svg")
@@ -2065,101 +2205,105 @@ class MainWindow(Adw.ApplicationWindow):
 
 
         # 6. Process Telemetry (System-Wide Live Per-App Network I/O)
-        proc_list = snapshot.get("processes", [])
-        total_p_down = sum(p.get("down_rate", 0.0) for p in proc_list)
-        total_p_up = sum(p.get("up_rate", 0.0) for p in proc_list)
+        is_proc_tab = getattr(self, "view_stack", None) and self.view_stack.get_visible_child_name() == "processes"
+        if is_proc_tab:
+            proc_list = snapshot.get("processes", [])
+            total_p_down = sum(p.get("down_rate", 0.0) for p in proc_list)
+            total_p_up = sum(p.get("up_rate", 0.0) for p in proc_list)
 
-        _set_lbl(self.lbl_proc_agg_down, format_speed(total_p_down))
-        _set_lbl(self.lbl_proc_agg_up, format_speed(total_p_up))
-        _set_lbl(self.lbl_proc_agg_tot, format_speed(total_p_down + total_p_up))
-        _set_lbl(self.lbl_proc_count, f"{len(proc_list)} Apps" if proc_list else "0 Apps")
+            _set_lbl(self.lbl_proc_agg_down, format_speed(total_p_down))
+            _set_lbl(self.lbl_proc_agg_up, format_speed(total_p_up))
+            _set_lbl(self.lbl_proc_agg_tot, format_speed(total_p_down + total_p_up))
+            _set_lbl(self.lbl_proc_count, f"{len(proc_list)} Apps" if proc_list else "0 Apps")
 
-        current_names = [p["name"] for p in proc_list]
-        if current_names != getattr(self, "_last_proc_keys", None):
-            self._last_proc_keys = list(current_names)
-            for r in self.proc_rows:
-                self.proc_group.remove(r)
-            self.proc_rows.clear()
-            self._proc_row_widgets = {}
+            current_names = [p["name"] for p in proc_list]
+            if current_names != getattr(self, "_last_proc_keys", None):
+                self._last_proc_keys = list(current_names)
+                for r in self.proc_rows:
+                    self.proc_group.remove(r)
+                self.proc_rows.clear()
+                self._proc_row_widgets = {}
 
-            if not proc_list:
-                empty_row = Adw.ActionRow(title="No active app network traffic")
-                empty_row.set_icon_name("network-idle-symbolic")
-                self.proc_group.add(empty_row)
-                self.proc_rows.append(empty_row)
+                if not proc_list:
+                    empty_row = Adw.ActionRow(title="No active app network traffic")
+                    empty_row.set_icon_name("network-idle-symbolic")
+                    self.proc_group.add(empty_row)
+                    self.proc_rows.append(empty_row)
+                else:
+                    for p in proc_list:
+                        row = Adw.ActionRow(title=p["name"])
+                        row.set_icon_name("application-x-executable-symbolic")
+                        pids_str = ", ".join(str(pid) for pid in p["pids"][:3])
+                        row.set_subtitle(f"PID {pids_str} • {p['total_str']}")
+
+                        suffix_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+                        suffix_box.set_valign(Gtk.Align.CENTER)
+
+                        rate_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+                        lbl_d = Gtk.Label(label=f"↓ {p['down_rate_str']}", halign=Gtk.Align.END)
+                        lbl_d.add_css_class("proc-speed-down" if p["down_rate"] > 0 else "proc-speed-idle")
+                        lbl_u = Gtk.Label(label=f"↑ {p['up_rate_str']}", halign=Gtk.Align.END)
+                        lbl_u.add_css_class("proc-speed-up" if p["up_rate"] > 0 else "proc-speed-idle")
+                        rate_box.append(lbl_d)
+                        rate_box.append(lbl_u)
+
+                        badge = Gtk.Label(label=f"{p['conns']} conns")
+                        badge.add_css_class("proc-conns-badge")
+
+                        suffix_box.append(rate_box)
+                        suffix_box.append(badge)
+
+                        row.add_suffix(suffix_box)
+                        self.proc_group.add(row)
+                        self.proc_rows.append(row)
+                        self._proc_row_widgets[p["name"]] = (row, lbl_d, lbl_u, badge)
             else:
                 for p in proc_list:
-                    row = Adw.ActionRow(title=p["name"])
-                    row.set_icon_name("application-x-executable-symbolic")
-                    pids_str = ", ".join(str(pid) for pid in p["pids"][:3])
-                    row.set_subtitle(f"PID {pids_str} • {p['total_str']}")
+                    widgets = getattr(self, "_proc_row_widgets", {}).get(p["name"])
+                    if widgets:
+                        row, lbl_d, lbl_u, badge = widgets
+                        pids_str = ", ".join(str(pid) for pid in p["pids"][:3])
+                        row.set_subtitle(f"PID {pids_str} • {p['total_str']}")
+                        lbl_d.set_text(f"↓ {p['down_rate_str']}")
+                        lbl_u.set_text(f"↑ {p['up_rate_str']}")
+                        badge.set_text(f"{p['conns']} conns")
+                        if p["down_rate"] > 0:
+                            lbl_d.remove_css_class("proc-speed-idle")
+                            lbl_d.add_css_class("proc-speed-down")
+                        else:
+                            lbl_d.remove_css_class("proc-speed-down")
+                            lbl_d.add_css_class("proc-speed-idle")
 
-                    suffix_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
-                    suffix_box.set_valign(Gtk.Align.CENTER)
+                        if p["up_rate"] > 0:
+                            lbl_u.remove_css_class("proc-speed-idle")
+                            lbl_u.add_css_class("proc-speed-up")
+                        else:
+                            lbl_u.remove_css_class("proc-speed-up")
+                            lbl_u.add_css_class("proc-speed-idle")
 
-                    rate_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
-                    lbl_d = Gtk.Label(label=f"↓ {p['down_rate_str']}", halign=Gtk.Align.END)
-                    lbl_d.add_css_class("proc-speed-down" if p["down_rate"] > 0 else "proc-speed-idle")
-                    lbl_u = Gtk.Label(label=f"↑ {p['up_rate_str']}", halign=Gtk.Align.END)
-                    lbl_u.add_css_class("proc-speed-up" if p["up_rate"] > 0 else "proc-speed-idle")
-                    rate_box.append(lbl_d)
-                    rate_box.append(lbl_u)
+        # 7. Daily History
+        is_hist_tab = getattr(self, "view_stack", None) and self.view_stack.get_visible_child_name() == "history"
+        if is_hist_tab:
+            now_ts = GLib.get_monotonic_time() / 1_000_000
+            if not hasattr(self, "_last_hist_update") or (now_ts - self._last_hist_update > 5.0):
+                self._last_hist_update = now_ts
+                history = self.collector.db.get_daily_history(days=7)
+                for r in self.hist_rows:
+                    self.hist_group.remove(r)
+                self.hist_rows.clear()
 
-                    badge = Gtk.Label(label=f"{p['conns']} conns")
-                    badge.add_css_class("proc-conns-badge")
-
-                    suffix_box.append(rate_box)
-                    suffix_box.append(badge)
-
-                    row.add_suffix(suffix_box)
-                    self.proc_group.add(row)
-                    self.proc_rows.append(row)
-                    self._proc_row_widgets[p["name"]] = (row, lbl_d, lbl_u, badge)
-        else:
-            for p in proc_list:
-                widgets = getattr(self, "_proc_row_widgets", {}).get(p["name"])
-                if widgets:
-                    row, lbl_d, lbl_u, badge = widgets
-                    pids_str = ", ".join(str(pid) for pid in p["pids"][:3])
-                    row.set_subtitle(f"PID {pids_str} • {p['total_str']}")
-                    lbl_d.set_text(f"↓ {p['down_rate_str']}")
-                    lbl_u.set_text(f"↑ {p['up_rate_str']}")
-                    badge.set_text(f"{p['conns']} conns")
-                    if p["down_rate"] > 0:
-                        lbl_d.remove_css_class("proc-speed-idle")
-                        lbl_d.add_css_class("proc-speed-down")
-                    else:
-                        lbl_d.remove_css_class("proc-speed-down")
-                        lbl_d.add_css_class("proc-speed-idle")
-
-                    if p["up_rate"] > 0:
-                        lbl_u.remove_css_class("proc-speed-idle")
-                        lbl_u.add_css_class("proc-speed-up")
-                    else:
-                        lbl_u.remove_css_class("proc-speed-up")
-                        lbl_u.add_css_class("proc-speed-idle")
-
-        # 6. Daily History
-        now_ts = GLib.get_monotonic_time() / 1_000_000
-        if not hasattr(self, "_last_hist_update") or (now_ts - self._last_hist_update > 5.0):
-            self._last_hist_update = now_ts
-            history = self.collector.db.get_daily_history(days=7)
-            for r in self.hist_rows:
-                self.hist_group.remove(r)
-            self.hist_rows.clear()
-
-            for day in reversed(history):
-                row = Adw.ActionRow(title=day["date"])
-                row.add_prefix(Gtk.Image.new_from_icon_name("preferences-system-time-symbolic"))
-                norm_str = format_bytes(day["normal_rx"] + day["normal_tx"])
-                vpn_str = format_bytes(day["vpn_rx"] + day["vpn_tx"])
-                tot_str = format_bytes(day["total_rx"] + day["total_tx"])
-                row.set_subtitle(f"Direct: {norm_str} • VPN: {vpn_str}")
-                lbl = Gtk.Label(label=tot_str, halign=Gtk.Align.END)
-                lbl.add_css_class("info-val")
-                row.add_suffix(lbl)
-                self.hist_group.add(row)
-                self.hist_rows.append(row)
+                for day in reversed(history):
+                    row = Adw.ActionRow(title=day["date"])
+                    row.add_prefix(Gtk.Image.new_from_icon_name("preferences-system-time-symbolic"))
+                    norm_str = format_bytes(day["normal_rx"] + day["normal_tx"])
+                    vpn_str = format_bytes(day["vpn_rx"] + day["vpn_tx"])
+                    tot_str = format_bytes(day["total_rx"] + day["total_tx"])
+                    row.set_subtitle(f"Direct: {norm_str} • VPN: {vpn_str}")
+                    lbl = Gtk.Label(label=tot_str, halign=Gtk.Align.END)
+                    lbl.add_css_class("info-val")
+                    row.add_suffix(lbl)
+                    self.hist_group.add(row)
+                    self.hist_rows.append(row)
 
         return True
 

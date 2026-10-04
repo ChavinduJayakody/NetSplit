@@ -123,17 +123,22 @@ class ProcessMonitor:
         now = time.monotonic()
         with self._lock:
             if self._cached_apps and (now - self._last_sample_t < self.cache_ttl):
-                return list(self._cached_apps)
+                return list(self._cached_apps[:limit])
+        return self.sample(limit=limit)
 
-            # Sample raw socket / process counters
-            if self.is_linux:
-                raw_snapshot = self._sample_linux_ss()
-                # If ss returned nothing (rare), fall back to psutil
-                if not raw_snapshot:
-                    raw_snapshot = self._sample_psutil_fallback()
-            else:
+    def sample(self, limit: int = 50) -> List[Dict[str, Any]]:
+        """Sample process network usage and update cache (safe for background threads)."""
+        now = time.monotonic()
+        # Sample raw socket / process counters
+        if self.is_linux:
+            raw_snapshot = self._sample_linux_ss()
+            # If ss returned nothing (rare), fall back to psutil
+            if not raw_snapshot:
                 raw_snapshot = self._sample_psutil_fallback()
+        else:
+            raw_snapshot = self._sample_psutil_fallback()
 
+        with self._lock:
             # Group multiple PIDs by process name
             grouped: Dict[str, Dict[str, Any]] = {}
 
