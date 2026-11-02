@@ -59,31 +59,31 @@ netsplit
 
 <div align="center">
 
-### 1. Live Traffic Monitor & Real-Time Waveform
-*Real-time meters for Direct Wi-Fi, VPN / Proxy, and Total Physical traffic with live Cairo waveforms and split ratio meter.*
+### 1. Overview — Live Traffic Monitor & Bandwidth Waveform
+*Real-time split meters for Direct (Wi-Fi) and VPN/Proxy traffic, animated multi-stream waveform graph, session totals, and peak readouts. v1.7.1 Adwaita dark UI.*
 <br/><br/>
-<img src="assets/screenshots/overview.png" width="840" alt="NetSplit Overview Dashboard" />
+<img src="assets/screenshots/overview.png" width="840" alt="NetSplit Overview — Live Traffic Monitor" />
 
 <br/><br/>
 
 ### 2. Wi-Fi Health & Latency Diagnostics
-*Live Wi-Fi signal quality, link capability, frequency channel, router gateway ping, Internet ping, and masked IP identifiers.*
+*Live signal strength, link speed, channel, SNR grade, gateway/internet ping, DNS resolve time, jitter, active routes per interface, and masked public IP.*
 <br/><br/>
-<img src="assets/screenshots/wifi.png" width="840" alt="NetSplit Wi-Fi and Diagnostics" />
+<img src="assets/screenshots/wifi.png" width="840" alt="NetSplit Wi-Fi Diagnostics" />
 
 <br/><br/>
 
-### 3. VPN & Proxy Multi-Protocol Detection
-*Auto-detects active TUN adapters (`throne-tun`, `wintun`), running proxy processes (VLESS, Xray, Sing-Box, etc.), and per-app data breakdown.*
+### 3. Per-App Process Telemetry — VPN vs. Direct Routing
+*Real-time per-process upload/download speeds, session data, socket counts, and VPN/Direct routing label. Supports WireGuard × n, OpenVPN, tun/tap auto-detection.*
 <br/><br/>
-<img src="assets/screenshots/vpn.png" width="840" alt="NetSplit VPN Status and Routed Applications" />
+<img src="assets/screenshots/vpn.png" width="840" alt="NetSplit Process Telemetry" />
 
 <br/><br/>
 
-### 4. Native Preferences & Exclusive Mode Settings
-*Toggle Exclusive Accounting Mode, customize IP masking, switch between Dark/Light/System theme, and control System Tray behavior.*
+### 4. Speed Benchmark (Cloudflare) & Preferences
+*Cloudflare-powered throughput + BufferBloat grade (A+), latency/jitter/packet-loss meta, geo-ribbon (Client → CF Edge), and the full Preferences panel with theme, autostart, privacy mode, tray, and GNOME extension toggles.*
 <br/><br/>
-<img src="assets/screenshots/settings.png" width="840" alt="NetSplit Settings and Preferences" />
+<img src="assets/screenshots/settings.png" width="840" alt="NetSplit Benchmark & Settings" />
 
 </div>
 
